@@ -1,7 +1,8 @@
 /**
  * CAR RUSH 3D - COMPLETE ARCADE RACING GAME ENGINE
- * HTML5 Canvas Pseudo-3D Road Engine with 100 Levels, Car Upgrades,
- * Drivers Roster, Missions, Web Audio Synthesizer & LocalStorage Save.
+ * HTML5 Canvas Pseudo-3D Road Engine with 100 Progressive Levels,
+ * Car Upgrades, Drivers Roster, Missions, Web Audio Synthesizer & LocalStorage Save.
+ * Fully compatible with GitHub Pages static hosting & mobile/desktop browsers.
  */
 
 (function () {
@@ -300,7 +301,6 @@
     playCrash() {
       if (!this.isSoundOn || !this.ctx) return;
       try {
-        // Noise buffer for metal crunch
         const bufferSize = this.ctx.sampleRate * 0.35;
         const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
         const data = buffer.getChannelData(0);
@@ -326,15 +326,15 @@
     }
 
     playCoin() {
-      this.playTone(987.77, 'triangle', 0.12, 0.15); // B5
-      setTimeout(() => this.playTone(1318.51, 'triangle', 0.2, 0.15), 60); // E6
+      this.playTone(987.77, 'triangle', 0.12, 0.15);
+      setTimeout(() => this.playTone(1318.51, 'triangle', 0.2, 0.15), 60);
     }
 
     playCheckpoint() {
-      this.playTone(523.25, 'sine', 0.15, 0.2); // C5
-      setTimeout(() => this.playTone(659.25, 'sine', 0.15, 0.2), 100); // E5
-      setTimeout(() => this.playTone(783.99, 'sine', 0.3, 0.2), 200); // G5
-      setTimeout(() => this.playTone(1046.5, 'sine', 0.4, 0.25), 300); // C6
+      this.playTone(523.25, 'sine', 0.15, 0.2);
+      setTimeout(() => this.playTone(659.25, 'sine', 0.15, 0.2), 100);
+      setTimeout(() => this.playTone(783.99, 'sine', 0.3, 0.2), 200);
+      setTimeout(() => this.playTone(1046.5, 'sine', 0.4, 0.25), 300);
     }
 
     playNitro() {
@@ -487,13 +487,13 @@
       this.audio = new AudioEngine();
 
       this.canvas = document.getElementById('game-canvas');
-      this.ctx = this.canvas.getContext('2d', { alpha: false });
+      this.ctx = this.canvas ? this.canvas.getContext('2d', { alpha: false }) : null;
 
       // Engine parameters
       this.fps = 60;
       this.step = 1 / this.fps;
-      this.width = 800;
-      this.height = 600;
+      this.width = window.innerWidth || 800;
+      this.height = window.innerHeight || 600;
       this.roadWidth = 2000;
       this.segmentLength = 200;
       this.rumbleLength = 3;
@@ -504,10 +504,10 @@
       this.drawDistance = 300;
 
       // Player racing state
-      this.playerX = 0; // -1 (left road edge) to 1 (right road edge)
-      this.position = 0; // camera z along track
-      this.speed = 0; // units per second
-      this.maxSpeed = 220; // km/h translated
+      this.playerX = 0;
+      this.position = 0;
+      this.speed = 0;
+      this.maxSpeed = 220;
       this.accel = 0;
       this.breaking = 0;
       this.nitro = 100;
@@ -538,6 +538,10 @@
       this.isPaused = false;
       this.isPlayingRace = false;
 
+      // Menu background track animation
+      this.menuPosition = 0;
+      this.menuSegments = [];
+
       // Inputs
       this.keys = {
         left: false,
@@ -551,7 +555,12 @@
       this.setupEventListeners();
       this.resizeCanvas();
       this.applySavedSettings();
+      this.showScreen('menu');
       this.refreshAllUI();
+
+      // Main Loop
+      this.mainLoopRunning = false;
+      this.startMainLoop();
     }
 
     initDomReferences() {
@@ -632,19 +641,19 @@
 
       document.getElementById('btn-pause-restart')?.addEventListener('click', () => {
         this.audio.playClick();
-        this.modals.pause.classList.add('hidden');
+        this.modals.pause?.classList.add('hidden');
         this.startRace(this.currentLevelId);
       });
 
       document.getElementById('btn-pause-settings')?.addEventListener('click', () => {
         this.audio.playClick();
-        this.modals.pause.classList.add('hidden');
+        this.modals.pause?.classList.add('hidden');
         this.showScreen('settings');
       });
 
       document.getElementById('btn-pause-quit')?.addEventListener('click', () => {
         this.audio.playClick();
-        this.modals.pause.classList.add('hidden');
+        this.modals.pause?.classList.add('hidden');
         this.endRaceSession();
         this.showScreen('levels');
       });
@@ -652,7 +661,9 @@
       // Main Menu Nav Buttons
       document.getElementById('btn-main-play')?.addEventListener('click', () => {
         this.audio.playClick();
-        this.openLevelBriefing(this.getHighestPlayableLevel());
+        this.audio.init();
+        const targetLvl = this.getHighestPlayableLevel();
+        this.openLevelBriefing(targetLvl);
       });
 
       document.getElementById('btn-nav-levels')?.addEventListener('click', () => {
@@ -706,33 +717,33 @@
       // Briefing Modal Buttons
       document.getElementById('btn-close-briefing')?.addEventListener('click', () => {
         this.audio.playClick();
-        this.modals.briefing.classList.add('hidden');
+        this.modals.briefing?.classList.add('hidden');
       });
 
       document.getElementById('btn-start-level-race')?.addEventListener('click', () => {
         this.audio.playClick();
         this.audio.init();
-        this.modals.briefing.classList.add('hidden');
+        this.modals.briefing?.classList.add('hidden');
         this.startRace(this.currentLevelId);
       });
 
       // Level Complete Buttons
       document.getElementById('btn-complete-next')?.addEventListener('click', () => {
         this.audio.playClick();
-        this.modals.complete.classList.add('hidden');
+        this.modals.complete?.classList.add('hidden');
         const nextId = Math.min(100, this.currentLevelId + 1);
         this.openLevelBriefing(nextId);
       });
 
       document.getElementById('btn-complete-replay')?.addEventListener('click', () => {
         this.audio.playClick();
-        this.modals.complete.classList.add('hidden');
+        this.modals.complete?.classList.add('hidden');
         this.startRace(this.currentLevelId);
       });
 
       document.getElementById('btn-complete-map')?.addEventListener('click', () => {
         this.audio.playClick();
-        this.modals.complete.classList.add('hidden');
+        this.modals.complete?.classList.add('hidden');
         this.endRaceSession();
         this.showScreen('levels');
       });
@@ -740,25 +751,25 @@
       // Game Over Buttons
       document.getElementById('btn-defeat-retry')?.addEventListener('click', () => {
         this.audio.playClick();
-        this.modals.gameover.classList.add('hidden');
+        this.modals.gameover?.classList.add('hidden');
         this.startRace(this.currentLevelId);
       });
 
       document.getElementById('btn-defeat-garage')?.addEventListener('click', () => {
         this.audio.playClick();
-        this.modals.gameover.classList.add('hidden');
+        this.modals.gameover?.classList.add('hidden');
         this.endRaceSession();
         this.showScreen('upgrades');
       });
 
       document.getElementById('btn-defeat-map')?.addEventListener('click', () => {
         this.audio.playClick();
-        this.modals.gameover.classList.add('hidden');
+        this.modals.gameover?.classList.add('hidden');
         this.endRaceSession();
         this.showScreen('levels');
       });
 
-      // Garage buttons
+      // Garage Buttons
       document.getElementById('btn-garage-action')?.addEventListener('click', () => {
         this.audio.playClick();
         this.handleGarageAction();
@@ -814,7 +825,8 @@
       const sensSlider = document.getElementById('steering-sens-slider');
       sensSlider?.addEventListener('input', (e) => {
         const val = parseFloat(e.target.value);
-        document.getElementById('steering-sens-val').textContent = `${val.toFixed(1)}x`;
+        const sensLabel = document.getElementById('steering-sens-val');
+        if (sensLabel) sensLabel.textContent = `${val.toFixed(1)}x`;
         this.save.data.settings.sensitivity = val;
         this.save.save();
       });
@@ -834,7 +846,6 @@
         document.getElementById('orientation-banner')?.classList.add('hidden');
       });
 
-      // Touch orientation detector
       this.checkOrientation();
     }
 
@@ -902,12 +913,15 @@
     }
 
     resizeCanvas() {
+      if (!this.canvas) return;
       const dpr = (this.save.data.settings.quality === 'low') ? 1 : Math.min(window.devicePixelRatio || 1, 2);
       this.width = window.innerWidth;
       this.height = window.innerHeight;
       this.canvas.width = this.width * dpr;
       this.canvas.height = this.height * dpr;
-      this.ctx.scale(dpr, dpr);
+      if (this.ctx) {
+        this.ctx.scale(dpr, dpr);
+      }
       this.cameraDepth = 1 / Math.tan((this.fieldOfView / 2) * Math.PI / 180);
     }
 
@@ -924,7 +938,8 @@
       const sensSlider = document.getElementById('steering-sens-slider');
       if (sensSlider) {
         sensSlider.value = s.sensitivity;
-        document.getElementById('steering-sens-val').textContent = `${s.sensitivity.toFixed(1)}x`;
+        const valLabel = document.getElementById('steering-sens-val');
+        if (valLabel) valLabel.textContent = `${s.sensitivity.toFixed(1)}x`;
       }
     }
 
@@ -956,28 +971,40 @@
     refreshAllUI() {
       // Coins and stats in header
       const coinsFormatted = this.save.data.coins.toLocaleString();
-      document.getElementById('menu-coins-val').textContent = coinsFormatted;
-      document.getElementById('menu-xp-val').textContent = `XP ${this.save.data.xp}`;
-      document.getElementById('menu-best-score').textContent = `BEST: ${this.save.data.stats.highestScore.toLocaleString()}`;
+      const coinsEl = document.getElementById('menu-coins-val');
+      if (coinsEl) coinsEl.textContent = coinsFormatted;
+      const xpEl = document.getElementById('menu-xp-val');
+      if (xpEl) xpEl.textContent = `XP ${this.save.data.xp}`;
+      const bestEl = document.getElementById('menu-best-score');
+      if (bestEl) bestEl.textContent = `BEST: ${this.save.data.stats.highestScore.toLocaleString()}`;
       document.querySelectorAll('.global-coins-val').forEach(el => el.textContent = coinsFormatted);
 
       // Active Driver
       const curDriver = DRIVERS.find(d => d.id === this.save.data.selectedDriverId) || DRIVERS[0];
-      document.getElementById('menu-driver-avatar').textContent = curDriver.avatar;
-      document.getElementById('menu-driver-name').textContent = curDriver.name;
-      document.getElementById('menu-driver-title').textContent = curDriver.title;
+      const avatarEl = document.getElementById('menu-driver-avatar');
+      if (avatarEl) avatarEl.textContent = curDriver.avatar;
+      const nameEl = document.getElementById('menu-driver-name');
+      if (nameEl) nameEl.textContent = curDriver.name;
+      const titleEl = document.getElementById('menu-driver-title');
+      if (titleEl) titleEl.textContent = curDriver.title;
 
       // Active Car in Hero
       const curCar = CARS.find(c => c.id === this.save.data.selectedCarId) || CARS[0];
-      document.getElementById('hero-car-name').textContent = curCar.name;
+      const heroCarName = document.getElementById('hero-car-name');
+      if (heroCarName) heroCarName.textContent = curCar.name;
       const highestLevel = this.getHighestPlayableLevel();
-      document.getElementById('btn-race-lvl-sub').textContent = `LEVEL ${highestLevel}`;
-      document.getElementById('nav-levels-progress').textContent = `${highestLevel} / 100`;
+      const raceLvlSub = document.getElementById('btn-race-lvl-sub');
+      if (raceLvlSub) raceLvlSub.textContent = `LEVEL ${highestLevel}`;
+      const levelsProgress = document.getElementById('nav-levels-progress');
+      if (levelsProgress) levelsProgress.textContent = `${highestLevel} / 100`;
 
       // Stat mini bars
-      document.getElementById('hero-stat-speed').style.width = `${Math.min(100, (curCar.baseSpeed / 330) * 100)}%`;
-      document.getElementById('hero-stat-acc').style.width = `${Math.min(100, (curCar.baseAcc / 10) * 100)}%`;
-      document.getElementById('hero-stat-nitro').style.width = `${Math.min(100, (curCar.baseNitro / 10) * 100)}%`;
+      const statSpeed = document.getElementById('hero-stat-speed');
+      if (statSpeed) statSpeed.style.width = `${Math.min(100, (curCar.baseSpeed / 330) * 100)}%`;
+      const statAcc = document.getElementById('hero-stat-acc');
+      if (statAcc) statAcc.style.width = `${Math.min(100, (curCar.baseAcc / 10) * 100)}%`;
+      const statNitro = document.getElementById('hero-stat-nitro');
+      if (statNitro) statNitro.style.width = `${Math.min(100, (curCar.baseNitro / 10) * 100)}%`;
     }
 
     getHighestPlayableLevel() {
@@ -986,6 +1013,12 @@
         if (this.save.data.levelProgress[i]?.unlocked) maxLvl = i;
       }
       return maxLvl;
+    }
+
+    getLevels() {
+      if (typeof GAME_LEVELS !== 'undefined') return GAME_LEVELS;
+      if (typeof window !== 'undefined' && window.GAME_LEVELS) return window.GAME_LEVELS;
+      return [];
     }
 
     /* 100 Level Map View */
@@ -997,7 +1030,6 @@
       container.innerHTML = '';
       tabsContainer.innerHTML = '';
 
-      // Zones 1-10 tabs
       for (let z = 1; z <= 10; z++) {
         const startLvl = (z - 1) * 10 + 1;
         const endLvl = z * 10;
@@ -1018,12 +1050,15 @@
 
     filterLevelsByZone(zoneNum) {
       const container = document.getElementById('levels-grid-container');
+      if (!container) return;
       container.innerHTML = '';
       const start = (zoneNum - 1) * 10 + 1;
       const end = zoneNum * 10;
+      const allLevels = this.getLevels();
 
       for (let i = start; i <= end; i++) {
-        const lvlData = GAME_LEVELS[i - 1];
+        const lvlData = allLevels[i - 1];
+        if (!lvlData) continue;
         const pData = this.save.data.levelProgress[i] || { unlocked: i === 1, stars: 0 };
         const isCurrent = (i === this.getHighestPlayableLevel());
 
@@ -1053,22 +1088,37 @@
 
     openLevelBriefing(lvlId) {
       this.currentLevelId = lvlId;
-      const lvl = GAME_LEVELS[lvlId - 1];
-      const pData = this.save.data.levelProgress[lvlId] || { stars: 0, bestScore: 0, bestTime: 0 };
+      const allLevels = this.getLevels();
+      const lvl = allLevels[lvlId - 1];
+      if (!lvl) {
+        console.error('Level data not found for id:', lvlId);
+        return;
+      }
 
-      document.getElementById('brief-zone-tag').textContent = `ZONE ${lvl.zone}: ${lvl.environment.name.toUpperCase()}`;
-      document.getElementById('brief-diff-tag').textContent = lvl.difficulty.toUpperCase();
-      document.getElementById('brief-level-title').textContent = `Level ${lvl.id}: ${lvl.name}`;
-      document.getElementById('brief-env-name').textContent = `${lvl.environment.name} • ${lvl.weather.toUpperCase()}`;
-      document.getElementById('brief-mission-title').textContent = lvl.targetLabel;
-      document.getElementById('brief-mission-desc').textContent = lvl.missionDesc;
-      document.getElementById('brief-distance').textContent = `${lvl.distance.toLocaleString()} m`;
-      document.getElementById('brief-time').textContent = `${lvl.timeLimit} s`;
-      document.getElementById('brief-score').textContent = `${lvl.targetScore.toLocaleString()} pts`;
-      document.getElementById('brief-reward-coins').textContent = lvl.rewardCoins;
-      document.getElementById('brief-reward-xp').textContent = lvl.rewardXP;
+      const zoneTag = document.getElementById('brief-zone-tag');
+      if (zoneTag) zoneTag.textContent = `ZONE ${lvl.zone}: ${lvl.environment.name.toUpperCase()}`;
+      const diffTag = document.getElementById('brief-diff-tag');
+      if (diffTag) diffTag.textContent = lvl.difficulty.toUpperCase();
+      const titleEl = document.getElementById('brief-level-title');
+      if (titleEl) titleEl.textContent = `Level ${lvl.id}: ${lvl.name}`;
+      const envEl = document.getElementById('brief-env-name');
+      if (envEl) envEl.textContent = `${lvl.environment.name} • ${lvl.weather.toUpperCase()}`;
+      const mTitle = document.getElementById('brief-mission-title');
+      if (mTitle) mTitle.textContent = lvl.targetLabel;
+      const mDesc = document.getElementById('brief-mission-desc');
+      if (mDesc) mDesc.textContent = lvl.missionDesc;
+      const distEl = document.getElementById('brief-distance');
+      if (distEl) distEl.textContent = `${lvl.distance.toLocaleString()} m`;
+      const timeEl = document.getElementById('brief-time');
+      if (timeEl) timeEl.textContent = `${lvl.timeLimit} s`;
+      const scoreEl = document.getElementById('brief-score');
+      if (scoreEl) scoreEl.textContent = `${lvl.targetScore.toLocaleString()} pts`;
+      const coinsEl = document.getElementById('brief-reward-coins');
+      if (coinsEl) coinsEl.textContent = lvl.rewardCoins;
+      const xpEl = document.getElementById('brief-reward-xp');
+      if (xpEl) xpEl.textContent = lvl.rewardXP;
 
-      this.modals.briefing.classList.remove('hidden');
+      this.modals.briefing?.classList.remove('hidden');
     }
 
     /* Garage Showcase View */
@@ -1082,32 +1132,39 @@
       const isOwned = this.save.data.unlockedCars.includes(car.id);
       const isEquipped = (this.save.data.selectedCarId === car.id);
 
-      document.getElementById('garage-car-name').textContent = car.name;
+      const nameEl = document.getElementById('garage-car-name');
+      if (nameEl) nameEl.textContent = car.name;
       const badge = document.getElementById('garage-unlocked-badge');
-      badge.textContent = isEquipped ? 'EQUIPPED' : (isOwned ? 'OWNED' : `UNLOCK: ${car.unlockCost.toLocaleString()} COINS`);
-      badge.style.color = isEquipped ? '#00f0ff' : (isOwned ? '#00ff88' : '#ffaa00');
+      if (badge) {
+        badge.textContent = isEquipped ? 'EQUIPPED' : (isOwned ? 'OWNED' : `UNLOCK: ${car.unlockCost.toLocaleString()} COINS`);
+        badge.style.color = isEquipped ? '#00f0ff' : (isOwned ? '#00ff88' : '#ffaa00');
+      }
 
       // Body paint
       const carBody = document.getElementById('garage-car-paint-body');
-      carBody.style.backgroundColor = isEquipped ? this.save.data.selectedCarColor : car.color;
+      if (carBody) {
+        carBody.style.backgroundColor = isEquipped ? this.save.data.selectedCarColor : car.color;
+      }
 
       // Color Palette
       const paletteContainer = document.getElementById('garage-color-options');
-      paletteContainer.innerHTML = '';
-      PAINT_COLORS.forEach(hex => {
-        const dot = document.createElement('div');
-        dot.className = `color-dot ${hex === this.save.data.selectedCarColor ? 'active' : ''}`;
-        dot.style.backgroundColor = hex;
-        dot.addEventListener('click', () => {
-          this.audio.playClick();
-          this.save.data.selectedCarColor = hex;
-          this.save.save();
-          carBody.style.backgroundColor = hex;
-          document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
-          dot.classList.add('active');
+      if (paletteContainer) {
+        paletteContainer.innerHTML = '';
+        PAINT_COLORS.forEach(hex => {
+          const dot = document.createElement('div');
+          dot.className = `color-dot ${hex === this.save.data.selectedCarColor ? 'active' : ''}`;
+          dot.style.backgroundColor = hex;
+          dot.addEventListener('click', () => {
+            this.audio.playClick();
+            this.save.data.selectedCarColor = hex;
+            this.save.save();
+            if (carBody) carBody.style.backgroundColor = hex;
+            document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+            dot.classList.add('active');
+          });
+          paletteContainer.appendChild(dot);
         });
-        paletteContainer.appendChild(dot);
-      });
+      }
 
       // Performance specs with car upgrades applied
       const up = this.save.data.carUpgrades[car.id] || { engine: 1, turbo: 1, tires: 1, brakes: 1, handling: 1, nitro: 1, durability: 1 };
@@ -1118,50 +1175,71 @@
       const nitroTotal = (car.baseNitro + (up.nitro - 1) * 0.5).toFixed(1);
       const duraTotal = Math.round(car.baseHealth + (up.durability - 1) * 15);
 
-      document.getElementById('spec-speed-val').textContent = `${speedTotal} km/h`;
-      document.getElementById('spec-speed-fill').style.width = `${Math.min(100, (speedTotal / 380) * 100)}%`;
-      document.getElementById('spec-acc-val').textContent = `${accTotal}/10`;
-      document.getElementById('spec-acc-fill').style.width = `${Math.min(100, (accTotal / 12) * 100)}%`;
-      document.getElementById('spec-handling-val').textContent = `${handTotal}/10`;
-      document.getElementById('spec-handling-fill').style.width = `${Math.min(100, (handTotal / 12) * 100)}%`;
-      document.getElementById('spec-braking-val').textContent = `${brakeTotal}/10`;
-      document.getElementById('spec-braking-fill').style.width = `${Math.min(100, (brakeTotal / 12) * 100)}%`;
-      document.getElementById('spec-nitro-val').textContent = `${nitroTotal}/10`;
-      document.getElementById('spec-nitro-fill').style.width = `${Math.min(100, (nitroTotal / 12) * 100)}%`;
-      document.getElementById('spec-durability-val').textContent = `${duraTotal} HP`;
-      document.getElementById('spec-durability-fill').style.width = `${Math.min(100, (duraTotal / 220) * 100)}%`;
+      const spdVal = document.getElementById('spec-speed-val');
+      if (spdVal) spdVal.textContent = `${speedTotal} km/h`;
+      const spdFill = document.getElementById('spec-speed-fill');
+      if (spdFill) spdFill.style.width = `${Math.min(100, (speedTotal / 380) * 100)}%`;
+
+      const accVal = document.getElementById('spec-acc-val');
+      if (accVal) accVal.textContent = `${accTotal}/10`;
+      const accFill = document.getElementById('spec-acc-fill');
+      if (accFill) accFill.style.width = `${Math.min(100, (accTotal / 12) * 100)}%`;
+
+      const handVal = document.getElementById('spec-handling-val');
+      if (handVal) handVal.textContent = `${handTotal}/10`;
+      const handFill = document.getElementById('spec-handling-fill');
+      if (handFill) handFill.style.width = `${Math.min(100, (handTotal / 12) * 100)}%`;
+
+      const brkVal = document.getElementById('spec-braking-val');
+      if (brkVal) brkVal.textContent = `${brakeTotal}/10`;
+      const brkFill = document.getElementById('spec-braking-fill');
+      if (brkFill) brkFill.style.width = `${Math.min(100, (brakeTotal / 12) * 100)}%`;
+
+      const ntrVal = document.getElementById('spec-nitro-val');
+      if (ntrVal) ntrVal.textContent = `${nitroTotal}/10`;
+      const ntrFill = document.getElementById('spec-nitro-fill');
+      if (ntrFill) ntrFill.style.width = `${Math.min(100, (nitroTotal / 12) * 100)}%`;
+
+      const durVal = document.getElementById('spec-durability-val');
+      if (durVal) durVal.textContent = `${duraTotal} HP`;
+      const durFill = document.getElementById('spec-durability-fill');
+      if (durFill) durFill.style.width = `${Math.min(100, (duraTotal / 220) * 100)}%`;
 
       // Equip / Purchase Action Button
       const actionBtn = document.getElementById('btn-garage-action');
-      if (isEquipped) {
-        actionBtn.textContent = 'EQUIPPED (IN USE)';
-        actionBtn.disabled = true;
-      } else if (isOwned) {
-        actionBtn.textContent = 'EQUIP THIS VEHICLE';
-        actionBtn.disabled = false;
-      } else {
-        actionBtn.textContent = `UNLOCK FOR ${car.unlockCost.toLocaleString()} COINS`;
-        actionBtn.disabled = (this.save.data.coins < car.unlockCost);
+      if (actionBtn) {
+        if (isEquipped) {
+          actionBtn.textContent = 'EQUIPPED (IN USE)';
+          actionBtn.disabled = true;
+        } else if (isOwned) {
+          actionBtn.textContent = 'EQUIP THIS VEHICLE';
+          actionBtn.disabled = false;
+        } else {
+          actionBtn.textContent = `UNLOCK FOR ${car.unlockCost.toLocaleString()} COINS`;
+          actionBtn.disabled = (this.save.data.coins < car.unlockCost);
+        }
       }
 
       // Fleet Carousel
       const listContainer = document.getElementById('garage-car-list');
-      listContainer.innerHTML = '';
-      CARS.forEach(c => {
-        const thumb = document.createElement('div');
-        const cOwned = this.save.data.unlockedCars.includes(c.id);
-        thumb.className = `car-thumb-card ${c.id === this.currentGarageCarId ? 'active' : ''}`;
-        thumb.innerHTML = `
-          <span class="thumb-car-icon">${cOwned ? '🏎️' : '🔒'}</span>
-          <span class="thumb-car-name">${c.name}</span>
-        `;
-        thumb.addEventListener('click', () => {
-          this.audio.playClick();
-          this.currentGarageCarId = c.id;
-          this.updateGarageView();
+      if (listContainer) {
+        listContainer.innerHTML = '';
+        CARS.forEach(c => {
+          const thumb = document.createElement('div');
+          const cOwned = this.save.data.unlockedCars.includes(c.id);
+          thumb.className = `car-thumb-card ${c.id === this.currentGarageCarId ? 'active' : ''}`;
+          thumb.innerHTML = `
+            <span class="thumb-car-icon">${cOwned ? '🏎️' : '🔒'}</span>
+            <span class="thumb-car-name">${c.name}</span>
+          `;
+          thumb.addEventListener('click', () => {
+            this.audio.playClick();
+            this.currentGarageCarId = c.id;
+            this.updateGarageView();
+          });
+          listContainer.appendChild(thumb);
         });
-        listContainer.appendChild(thumb);
-      });
+      }
     }
 
     handleGarageAction() {
@@ -1173,6 +1251,7 @@
         this.save.data.selectedCarId = car.id;
         this.save.save();
         this.updateGarageView();
+        this.refreshAllUI();
       } else {
         if (this.save.data.coins >= car.unlockCost) {
           this.save.data.coins -= car.unlockCost;
@@ -1236,7 +1315,7 @@
         `;
 
         const buyBtn = card.querySelector('.btn-buy-upgrade');
-        if (!isMax) {
+        if (!isMax && buyBtn) {
           buyBtn.addEventListener('click', () => {
             this.audio.playClick();
             if (this.save.data.coins >= nextCost) {
@@ -1288,7 +1367,7 @@
         `;
 
         if (isUnlocked && !isSelected) {
-          card.querySelector('.btn-char-select').addEventListener('click', () => {
+          card.querySelector('.btn-char-select')?.addEventListener('click', () => {
             this.audio.playClick();
             this.save.data.selectedDriverId = driver.id;
             this.save.save();
@@ -1331,7 +1410,7 @@
         `;
 
         const btn = card.querySelector('.btn-claim-mission');
-        if (isComplete && !isClaimed) {
+        if (isComplete && !isClaimed && btn) {
           btn.addEventListener('click', () => {
             this.audio.playClick();
             this.save.data.claimedMissions[mission.id] = true;
@@ -1355,7 +1434,6 @@
       container.innerHTML = '';
 
       const list = [...this.save.data.leaderboard];
-      // Add player's best if exists
       if (this.save.data.stats.highestScore > 0) {
         list.push({
           rank: '-',
@@ -1393,7 +1471,6 @@
       const numSegments = Math.floor(levelConfig.distance / this.segmentLength);
       this.trackLength = numSegments * this.segmentLength;
 
-      // Road generation helper
       let curY = 0;
       let curCurve = 0;
 
@@ -1402,7 +1479,6 @@
         segment.p1.world.z = n * this.segmentLength;
         segment.p2.world.z = (n + 1) * this.segmentLength;
 
-        // Elevation and curves
         if (n > 20 && n < numSegments - 20) {
           if (n % 40 === 0) {
             curCurve = (Math.sin(n / 25) * 3.5);
@@ -1417,24 +1493,20 @@
         segment.p2.world.y = curY;
         segment.curve = curCurve;
 
-        // Environment coloring
         const isRumble = Math.floor(n / this.rumbleLength) % 2 === 0;
         segment.color.road = env.roadColor;
         segment.color.grass = env.groundColor;
         segment.color.rumble = isRumble ? env.curbColor1 : env.curbColor2;
         segment.color.lane = (Math.floor(n / 2) % 2 === 0) ? '#ffffff' : env.roadColor;
 
-        // Checkpoint gate every 1000m
         if (n > 30 && n % 35 === 0 && n < numSegments - 20) {
           segment.isCheckpoint = true;
         }
 
-        // Finish line
         if (n === numSegments - 1) {
           segment.isFinish = true;
         }
 
-        // Scenery objects alongside road
         if (n % 6 === 0) {
           const side = (n % 12 === 0) ? -1 : 1;
           const offset = side * (1.6 + Math.random() * 0.8);
@@ -1445,12 +1517,10 @@
           });
         }
 
-        // Tunnel roof in tunnel levels
         if (env.id === 'tunnel' && n > 25 && n < numSegments - 15) {
           segment.isTunnel = true;
         }
 
-        // Coins scattered on road
         if (n > 10 && n % 14 === 0 && Math.random() > 0.3) {
           segment.coins.push({
             lane: (Math.floor(Math.random() * 3) - 1) * 0.6,
@@ -1461,7 +1531,6 @@
         this.segments.push(segment);
       }
 
-      // Spawn traffic vehicles
       this.trafficCars = [];
       const trafficCount = Math.floor(numSegments * 0.08 * levelConfig.trafficDensity);
       for (let i = 0; i < trafficCount; i++) {
@@ -1484,6 +1553,7 @@
     }
 
     findSegment(z) {
+      if (!this.segments || this.segments.length === 0) return null;
       return this.segments[Math.floor(z / this.segmentLength) % this.segments.length];
     }
 
@@ -1493,9 +1563,13 @@
 
     startRace(levelId) {
       this.currentLevelId = levelId;
-      this.currentLevel = GAME_LEVELS[levelId - 1];
+      const allLevels = this.getLevels();
+      this.currentLevel = allLevels[levelId - 1];
+      if (!this.currentLevel) {
+        console.error('Level data missing for ID:', levelId);
+        return;
+      }
 
-      // Calculate car stats with player upgrades & driver bonus
       const car = CARS.find(c => c.id === this.save.data.selectedCarId) || CARS[0];
       const up = this.save.data.carUpgrades[car.id] || { engine: 1, turbo: 1, tires: 1, brakes: 1, handling: 1, nitro: 1, durability: 1 };
       const driver = DRIVERS.find(d => d.id === this.save.data.selectedDriverId) || DRIVERS[0];
@@ -1517,7 +1591,6 @@
       this.position = 0;
       this.playerX = 0;
 
-      // Race metrics
       this.raceScore = 0;
       this.raceCoins = 0;
       this.raceOvertakes = 0;
@@ -1529,32 +1602,38 @@
       this.isGameOver = false;
       this.isVictory = false;
       this.isPaused = false;
-      this.isPlayingRace = true;
 
       // Build 3D Track
       this.buildTrack(this.currentLevel);
 
       // Setup HUD
-      this.hudOverlay.classList.remove('hidden');
-      document.getElementById('hud-level-badge').textContent = `LVL ${this.currentLevel.id}`;
-      document.getElementById('hud-objective-text').innerHTML = `${this.currentLevel.targetLabel}: <span id="hud-objective-val">0</span>`;
+      this.hudOverlay?.classList.remove('hidden');
+      const lvlBadge = document.getElementById('hud-level-badge');
+      if (lvlBadge) lvlBadge.textContent = `LVL ${this.currentLevel.id}`;
+      const objText = document.getElementById('hud-objective-text');
+      if (objText) objText.innerHTML = `${this.currentLevel.targetLabel}: <span id="hud-objective-val">0</span>`;
 
       // Hide all UI screens
-      Object.keys(this.screens).forEach(key => this.screens[key].classList.add('hidden'));
+      Object.keys(this.screens).forEach(key => {
+        if (this.screens[key]) {
+          this.screens[key].classList.add('hidden');
+          this.screens[key].classList.remove('active');
+        }
+      });
 
-      // Start Audio
+      // Audio
       if (this.save.data.settings.music) this.audio.startMusic();
 
-      // Start Animation Loop
+      // State is active race
+      this.isPlayingRace = true;
       this.lastFrameTime = performance.now();
-      requestAnimationFrame((time) => this.gameLoop(time));
     }
 
     endRaceSession() {
       this.isPlayingRace = false;
       this.audio.stopEngine();
       this.audio.stopMusic();
-      this.hudOverlay.classList.add('hidden');
+      this.hudOverlay?.classList.add('hidden');
     }
 
     togglePause() {
@@ -1562,27 +1641,41 @@
       this.isPaused = !this.isPaused;
       if (this.isPaused) {
         this.audio.stopEngine();
-        this.modals.pause.classList.remove('hidden');
-        document.getElementById('pause-level-text').textContent = `Level ${this.currentLevel.id} • ${this.currentLevel.name}`;
+        this.modals.pause?.classList.remove('hidden');
+        const pauseLvlText = document.getElementById('pause-level-text');
+        if (pauseLvlText && this.currentLevel) {
+          pauseLvlText.textContent = `Level ${this.currentLevel.id} • ${this.currentLevel.name}`;
+        }
       } else {
-        this.modals.pause.classList.add('hidden');
+        this.modals.pause?.classList.add('hidden');
         this.lastFrameTime = performance.now();
-        requestAnimationFrame((time) => this.gameLoop(time));
       }
     }
 
-    gameLoop(now) {
-      if (!this.isPlayingRace || this.isPaused) return;
+    /* ==========================================================================
+       MAIN CONTINUOUS REQUESTANIMATIONFRAME LOOP
+       ========================================================================== */
 
-      const dt = Math.min(0.1, (now - this.lastFrameTime) / 1000);
-      this.lastFrameTime = now;
+    startMainLoop() {
+      if (this.mainLoopRunning) return;
+      this.mainLoopRunning = true;
+      this.lastFrameTime = performance.now();
 
-      this.update(dt);
-      this.render();
+      const loop = (now) => {
+        const dt = Math.min(0.1, (now - (this.lastFrameTime || now)) / 1000);
+        this.lastFrameTime = now;
 
-      if (!this.isGameOver && !this.isVictory) {
-        requestAnimationFrame((time) => this.gameLoop(time));
-      }
+        if (this.isPlayingRace && !this.isPaused && !this.isGameOver && !this.isVictory) {
+          this.update(dt);
+          this.render();
+        } else if (!this.isPlayingRace) {
+          this.renderMenuBackground(dt);
+        }
+
+        requestAnimationFrame(loop);
+      };
+
+      requestAnimationFrame(loop);
     }
 
     /* ==========================================================================
@@ -1590,7 +1683,6 @@
        ========================================================================== */
 
     update(dt) {
-      // Driver bonus & upgrades reference
       const driver = DRIVERS.find(d => d.id === this.save.data.selectedDriverId) || DRIVERS[0];
       const sens = this.save.data.settings.sensitivity || 1.0;
 
@@ -1605,11 +1697,9 @@
         this.save.data.stats.totalNitroBurns++;
       } else {
         this.isNitroActive = false;
-        // Slowly recharge nitro
         this.nitro = Math.min(100, this.nitro + 3.0 * dt);
       }
 
-      // Speed acceleration / braking
       const accel = (targetMaxSpeed / 5.0) * (this.accelerationFactor / 7.0);
       const decel = -targetMaxSpeed / 3.0;
 
@@ -1618,11 +1708,9 @@
       } else if (this.keys.slower) {
         this.speed = Math.max(0, this.speed + decel * dt * 2.2);
       } else {
-        // Natural friction coasting
         this.speed = Math.max(0, this.speed - (targetMaxSpeed / 7.0) * dt);
       }
 
-      // Steering with centrifugal force from road curve
       const playerSegment = this.findSegment(this.position + 1000);
       const speedRatio = this.speed / this.maxSpeed;
       const turnAgility = 2.4 * sens * (driver.bonus.handling || 1.0);
@@ -1634,32 +1722,25 @@
         this.playerX += turnAgility * dt * (0.4 + speedRatio * 0.6);
       }
 
-      // Road centrifugal pull
-      this.playerX -= (playerSegment.curve * speedRatio * 0.015);
+      if (playerSegment) {
+        this.playerX -= (playerSegment.curve * speedRatio * 0.015);
+      }
 
-      // Off-road shoulder penalty
       if (Math.abs(this.playerX) > 1.05) {
         this.speed = Math.max(0, this.speed - (this.maxSpeed * 0.6) * dt);
-        // Constrain so player doesn't wander off into infinity
         this.playerX = Math.max(-1.8, Math.min(1.8, this.playerX));
       }
 
-      // Advance track position
       const moveDistance = (this.speed * 25) * dt;
       this.position += moveDistance;
       this.save.data.stats.totalDistance += Math.round(moveDistance / 10);
 
-      // Audio engine pitch
       this.audio.playEngine(speedRatio);
 
-      // Time countdown
       this.raceElapsedTime += dt;
       this.raceTimeRemaining = Math.max(0, this.raceTimeRemaining - dt);
-
-      // Score for speed & distance
       this.raceScore += Math.round(this.speed * dt * 0.8 * this.comboMultiplier);
 
-      // Combo Decay
       if (this.comboTimer > 0) {
         this.comboTimer -= dt;
         if (this.comboTimer <= 0) {
@@ -1667,8 +1748,7 @@
         }
       }
 
-      // Coin pickups & Gates on player segment
-      if (playerSegment.coins && playerSegment.coins.length > 0) {
+      if (playerSegment && playerSegment.coins && playerSegment.coins.length > 0) {
         playerSegment.coins.forEach(c => {
           if (!c.collected && Math.abs(this.playerX - c.lane) < 0.45) {
             c.collected = true;
@@ -1681,22 +1761,16 @@
         });
       }
 
-      // Checkpoint passing
-      if (playerSegment.isCheckpoint && !playerSegment.checkpointPassed) {
+      if (playerSegment && playerSegment.isCheckpoint && !playerSegment.checkpointPassed) {
         playerSegment.checkpointPassed = true;
         this.raceScore += 500 * this.comboMultiplier;
-        this.raceTimeRemaining += 15; // Time bonus
+        this.raceTimeRemaining += 15;
         this.addScorePopup('+500 CHECKPOINT!', false);
         this.audio.playCheckpoint();
       }
 
-      // Update Traffic AI & Collision
       this.updateTraffic(dt, playerSegment);
-
-      // Update HUD elements
       this.updateHUD();
-
-      // Check Mission Success / Failure Conditions
       this.checkRaceConditions();
     }
 
@@ -1704,17 +1778,14 @@
       const driver = DRIVERS.find(d => d.id === this.save.data.selectedDriverId) || DRIVERS[0];
 
       this.trafficCars.forEach(car => {
-        // Move car forward along track
         car.z += car.speed * 20 * dt;
         if (car.z >= this.trackLength) car.z -= this.trackLength;
 
-        // Gentle random lane shift
         if (Math.random() < 0.005) {
           car.targetOffset = [-0.65, 0, 0.65][Math.floor(Math.random() * 3)];
         }
         car.offset += (car.targetOffset - car.offset) * 2.0 * dt;
 
-        // Overtake detection (car is behind player now)
         const relZ = car.z - this.position;
         if (relZ < 0 && relZ > -250 && !car.overtaken) {
           car.overtaken = true;
@@ -1724,17 +1795,11 @@
           this.addScorePopup('+150 OVERTAKE', false);
         }
 
-        // Near-Miss & Collision Detection
-        // Collision box when within +/- 150 z units
         if (Math.abs(relZ) < 160) {
           const latDist = Math.abs(this.playerX - car.offset);
-
-          // Direct Hit
           if (latDist < 0.38) {
             this.handleCollision(car, driver);
-          }
-          // Near Miss (Passing extremely close at high speed)
-          else if (latDist < 0.65 && !car.nearMissed && this.speed > 140) {
+          } else if (latDist < 0.65 && !car.nearMissed && this.speed > 140) {
             car.nearMissed = true;
             this.raceNearMisses++;
             this.save.data.stats.totalNearMisses++;
@@ -1753,15 +1818,11 @@
         navigator.vibrate([60, 40, 60]);
       }
 
-      // Damage calculation
       const baseDamage = 22;
       const damage = baseDamage * (driver.bonus.armor ? 1 / driver.bonus.armor : 1.0);
       this.health = Math.max(0, this.health - damage);
-
-      // Speed penalty
       this.speed = Math.max(30, this.speed * 0.4);
 
-      // Push cars apart
       if (this.playerX < car.offset) {
         this.playerX -= 0.3;
         car.offset += 0.3;
@@ -1770,7 +1831,6 @@
         car.offset -= 0.3;
       }
 
-      // Reset combo
       this.comboMultiplier = 1;
       this.comboTimer = 0;
       this.addScorePopup('CRASH! -HP', true);
@@ -1782,6 +1842,7 @@
     }
 
     addScorePopup(text, isNearMiss = false) {
+      if (!this.hudPopupsContainer) return;
       const popup = document.createElement('div');
       popup.className = `score-float-item ${isNearMiss ? 'near-miss' : ''}`;
       popup.textContent = text;
@@ -1790,20 +1851,19 @@
     }
 
     updateHUD() {
-      this.hudSpeedNum.textContent = Math.round(this.speed);
+      if (this.hudSpeedNum) this.hudSpeedNum.textContent = Math.round(this.speed);
       const hpPct = Math.round((this.health / this.maxHealth) * 100);
-      this.hudHealthFill.style.width = `${hpPct}%`;
-      this.hudHealthPct.textContent = `${hpPct}%`;
+      if (this.hudHealthFill) this.hudHealthFill.style.width = `${hpPct}%`;
+      if (this.hudHealthPct) this.hudHealthPct.textContent = `${hpPct}%`;
 
       const nitroPct = Math.round(this.nitro);
-      this.hudNitroFill.style.width = `${nitroPct}%`;
-      this.hudNitroPct.textContent = `${nitroPct}%`;
+      if (this.hudNitroFill) this.hudNitroFill.style.width = `${nitroPct}%`;
+      if (this.hudNitroPct) this.hudNitroPct.textContent = `${nitroPct}%`;
 
-      this.hudScoreVal.textContent = this.raceScore.toLocaleString();
-      this.hudCoinsVal.textContent = this.raceCoins;
-      this.hudTimerVal.textContent = this.raceTimeRemaining.toFixed(1);
+      if (this.hudScoreVal) this.hudScoreVal.textContent = this.raceScore.toLocaleString();
+      if (this.hudCoinsVal) this.hudCoinsVal.textContent = this.raceCoins;
+      if (this.hudTimerVal) this.hudTimerVal.textContent = this.raceTimeRemaining.toFixed(1);
 
-      // Objective progress
       let currentObjVal = 0;
       const targetReq = this.currentLevel.targetRequirement;
       switch (this.currentLevel.missionKey) {
@@ -1816,36 +1876,31 @@
       }
 
       const objPct = Math.min(100, Math.round((currentObjVal / targetReq) * 100));
-      this.hudObjectiveVal.textContent = `${currentObjVal}/${targetReq}`;
-      this.hudObjectiveBar.style.width = `${objPct}%`;
+      if (this.hudObjectiveVal) this.hudObjectiveVal.textContent = `${currentObjVal}/${targetReq}`;
+      if (this.hudObjectiveBar) this.hudObjectiveBar.style.width = `${objPct}%`;
 
-      // Combo badge
       if (this.comboMultiplier > 1) {
-        this.hudComboBadge.classList.remove('hidden');
-        this.hudComboBadge.textContent = `x${this.comboMultiplier} COMBO!`;
+        this.hudComboBadge?.classList.remove('hidden');
+        if (this.hudComboBadge) this.hudComboBadge.textContent = `x${this.comboMultiplier} COMBO!`;
       } else {
-        this.hudComboBadge.classList.add('hidden');
+        this.hudComboBadge?.classList.add('hidden');
       }
 
-      // Track progress marker
       const trackPct = Math.min(100, Math.max(0, (this.position / this.trackLength) * 100));
-      this.hudPosMarker.style.left = `${trackPct}%`;
+      if (this.hudPosMarker) this.hudPosMarker.style.left = `${trackPct}%`;
     }
 
     checkRaceConditions() {
-      // 1. Vehicle Health Depleted
       if (this.health <= 0) {
-        this.triggerGameOver('Your vehicle sustained catastrophic collision damage!');
+        this.triggerGameOver('Your vehicle sustained critical collision damage!');
         return;
       }
 
-      // 2. Timer Expired
       if (this.raceTimeRemaining <= 0) {
         this.triggerGameOver('Time limit expired before reaching the finish line!');
         return;
       }
 
-      // 3. Finish Line Crossed
       if (this.position >= this.trackLength) {
         this.triggerLevelVictory();
       }
@@ -1856,12 +1911,16 @@
       this.endRaceSession();
       this.audio.playCrash();
 
-      document.getElementById('defeat-headline').textContent = 'RACE FAILED';
-      document.getElementById('defeat-reason-text').textContent = reason;
-      document.getElementById('defeat-distance').textContent = `${Math.round(this.position).toLocaleString()} m`;
-      document.getElementById('defeat-score').textContent = this.raceScore.toLocaleString();
+      const headline = document.getElementById('defeat-headline');
+      if (headline) headline.textContent = 'RACE FAILED';
+      const reasonEl = document.getElementById('defeat-reason-text');
+      if (reasonEl) reasonEl.textContent = reason;
+      const distEl = document.getElementById('defeat-distance');
+      if (distEl) distEl.textContent = `${Math.round(this.position).toLocaleString()} m`;
+      const scoreEl = document.getElementById('defeat-score');
+      if (scoreEl) scoreEl.textContent = this.raceScore.toLocaleString();
 
-      this.modals.gameover.classList.remove('hidden');
+      this.modals.gameover?.classList.remove('hidden');
     }
 
     triggerLevelVictory() {
@@ -1869,13 +1928,10 @@
       this.endRaceSession();
       this.audio.playVictory();
 
-      // Calculate Stars (1-3)
       let stars = 1;
-      const targetReqMet = (this.raceOvertakes >= this.currentLevel.targetRequirement || this.raceCoins >= this.currentLevel.targetRequirement || this.position >= this.trackLength);
       if (this.raceScore >= this.currentLevel.targetScore * 0.75) stars = 2;
       if (this.raceScore >= this.currentLevel.targetScore && this.health >= this.maxHealth * 0.6) stars = 3;
 
-      // Update Save Progress
       const lvlId = this.currentLevel.id;
       if (!this.save.data.levelProgress[lvlId]) {
         this.save.data.levelProgress[lvlId] = { unlocked: true, stars: 0, bestScore: 0, bestTime: 0 };
@@ -1885,7 +1941,6 @@
       p.bestScore = Math.max(p.bestScore, this.raceScore);
       p.bestTime = (p.bestTime === 0) ? this.raceElapsedTime : Math.min(p.bestTime, this.raceElapsedTime);
 
-      // Unlock next level
       if (lvlId < 100) {
         if (!this.save.data.levelProgress[lvlId + 1]) {
           this.save.data.levelProgress[lvlId + 1] = { unlocked: true, stars: 0, bestScore: 0, bestTime: 0 };
@@ -1894,7 +1949,6 @@
         }
       }
 
-      // Add coins & XP
       this.save.data.coins += this.currentLevel.rewardCoins;
       this.save.data.xp += this.currentLevel.rewardXP;
       if (this.raceScore > this.save.data.stats.highestScore) {
@@ -1903,28 +1957,39 @@
       if (stars === 3) this.save.data.stats.threeStarCount++;
       this.save.save();
 
-      // Victory Modal Setup
-      document.getElementById('complete-headline').textContent = (lvlId === 100) ? 'CHAMPIONSHIP COMPLETE!' : 'LEVEL COMPLETE!';
-      const starContainer = document.getElementById('complete-stars-container');
-      starContainer.innerHTML = '';
-      for (let s = 1; s <= 3; s++) {
-        starContainer.innerHTML += `<span class="result-star ${s <= stars ? 'active' : ''}">★</span>`;
+      const completeHeadline = document.getElementById('complete-headline');
+      if (completeHeadline) {
+        completeHeadline.textContent = (lvlId === 100) ? 'CHAMPIONSHIP COMPLETE!' : 'LEVEL COMPLETE!';
       }
-      document.getElementById('complete-score').textContent = this.raceScore.toLocaleString();
-      document.getElementById('complete-time').textContent = `${this.raceElapsedTime.toFixed(1)}s`;
-      document.getElementById('complete-overtakes').textContent = this.raceOvertakes;
-      document.getElementById('complete-near-misses').textContent = this.raceNearMisses;
-      document.getElementById('complete-coins-earned').textContent = `+${this.currentLevel.rewardCoins} Coins`;
-      document.getElementById('complete-xp-earned').textContent = `+${this.currentLevel.rewardXP} XP`;
+
+      const starContainer = document.getElementById('complete-stars-container');
+      if (starContainer) {
+        starContainer.innerHTML = '';
+        for (let s = 1; s <= 3; s++) {
+          starContainer.innerHTML += `<span class="result-star ${s <= stars ? 'active' : ''}">★</span>`;
+        }
+      }
+
+      const compScore = document.getElementById('complete-score');
+      if (compScore) compScore.textContent = this.raceScore.toLocaleString();
+      const compTime = document.getElementById('complete-time');
+      if (compTime) compTime.textContent = `${this.raceElapsedTime.toFixed(1)}s`;
+      const compOver = document.getElementById('complete-overtakes');
+      if (compOver) compOver.textContent = this.raceOvertakes;
+      const compNear = document.getElementById('complete-near-misses');
+      if (compNear) compNear.textContent = this.raceNearMisses;
+      const compCoins = document.getElementById('complete-coins-earned');
+      if (compCoins) compCoins.textContent = `+${this.currentLevel.rewardCoins} Coins`;
+      const compXp = document.getElementById('complete-xp-earned');
+      if (compXp) compXp.textContent = `+${this.currentLevel.rewardXP} XP`;
 
       const grandBanner = document.getElementById('champ-grand-banner');
-      if (lvlId === 100) {
-        grandBanner.classList.remove('hidden');
-      } else {
-        grandBanner.classList.add('hidden');
+      if (grandBanner) {
+        if (lvlId === 100) grandBanner.classList.remove('hidden');
+        else grandBanner.classList.add('hidden');
       }
 
-      this.modals.complete.classList.remove('hidden');
+      this.modals.complete?.classList.remove('hidden');
     }
 
     /* ==========================================================================
@@ -1932,33 +1997,42 @@
        ========================================================================== */
 
     render() {
+      if (!this.ctx) return;
       const ctx = this.ctx;
       const width = this.width;
       const height = this.height;
-      const env = this.currentLevel ? this.currentLevel.environment : ENVIRONMENTS.CITY;
+      const env = this.currentLevel ? this.currentLevel.environment : {
+        skyColor: '#0b132b',
+        horizonColor: '#1c2541',
+        groundColor: '#1a1d20',
+        roadColor: '#2b2d42',
+        hasBuildings: true,
+        sceneryType: 'city'
+      };
 
-      // 1. Draw Sky & Horizon Gradient
+      // 1. Sky & Horizon Gradient
       const skyGrad = ctx.createLinearGradient(0, 0, 0, height / 2);
       skyGrad.addColorStop(0, env.skyColor);
       skyGrad.addColorStop(1, env.horizonColor);
       ctx.fillStyle = skyGrad;
       ctx.fillRect(0, 0, width, height / 2);
 
-      // 2. Distant Horizon Skyline / Mountains / Dunes
+      // 2. Horizon Skyline / Mountains / Dunes
       this.renderHorizonScenery(ctx, env, width, height);
 
-      // 3. Ground base
+      // 3. Ground
       ctx.fillStyle = env.groundColor;
       ctx.fillRect(0, height / 2, width, height / 2);
 
-      // 4. Render 3D Road Segments (Back to front)
-      const baseSegment = this.findSegment(this.position);
+      if (!this.segments || this.segments.length === 0) return;
+
+      // 4. Render 3D Road Segments
+      const baseSegment = this.findSegment(this.position) || this.segments[0];
       const basePercent = (this.position % this.segmentLength) / this.segmentLength;
       let maxY = height;
       let x = 0;
       let dx = - (baseSegment.curve * basePercent);
 
-      // Project all segments within draw distance
       for (let n = 0; n < this.drawDistance; n++) {
         const segment = this.segments[(baseSegment.index + n) % this.segments.length];
         const loopZ = (segment.index < baseSegment.index) ? this.trackLength : 0;
@@ -1973,27 +2047,23 @@
           continue;
         }
 
-        // Draw Road Polygon
         this.renderRoadSegment(ctx, width, segment, maxY);
         maxY = segment.p1.screen.y;
       }
 
-      // 5. Render Sprites, Checkpoint Arches, Coins, and Traffic (Front to back sorting)
+      // 5. Render Sprites, Checkpoint Arches, Coins
       for (let n = this.drawDistance - 1; n > 0; n--) {
         const segment = this.segments[(baseSegment.index + n) % this.segments.length];
 
-        // Scenery sprites
         for (let s = 0; s < segment.sprites.length; s++) {
           const sprite = segment.sprites[s];
           this.renderScenerySprite(ctx, segment, sprite, width, height);
         }
 
-        // Checkpoint / Finish arch
         if (segment.isCheckpoint || segment.isFinish) {
           this.renderGateArch(ctx, segment, segment.isFinish, width);
         }
 
-        // Coins on track
         if (segment.coins) {
           for (let c = 0; c < segment.coins.length; c++) {
             if (!segment.coins[c].collected) {
@@ -2003,14 +2073,80 @@
         }
       }
 
-      // 6. Render Traffic Vehicles
+      // 6. Traffic
       this.renderTrafficVehicles(ctx, width, height);
 
-      // 7. Render Player's 3D Vehicle & Exhaust Flames
+      // 7. Player Car
       this.renderPlayerCar(ctx, width, height);
 
-      // 8. Weather effects (Rain, Snow, Speed Lines)
+      // 8. Weather
       this.renderWeatherParticles(ctx, width, height);
+    }
+
+    renderMenuBackground(dt) {
+      if (!this.ctx) return;
+      const ctx = this.ctx;
+      const width = this.width;
+      const height = this.height;
+
+      this.menuPosition = (this.menuPosition || 0) + 1400 * dt;
+
+      if (!this.menuSegments || this.menuSegments.length === 0) {
+        this.menuSegments = [];
+        for (let n = 0; n < 180; n++) {
+          const seg = new Segment(n);
+          seg.p1.world.z = n * this.segmentLength;
+          seg.p2.world.z = (n + 1) * this.segmentLength;
+          seg.p1.world.y = Math.sin(n / 20) * 350;
+          seg.p2.world.y = Math.sin((n + 1) / 20) * 350;
+          seg.curve = Math.sin(n / 18) * 1.8;
+          const isRumble = Math.floor(n / this.rumbleLength) % 2 === 0;
+          seg.color.road = '#2b2d42';
+          seg.color.grass = '#1a1d20';
+          seg.color.rumble = isRumble ? '#ff0055' : '#00f0ff';
+          seg.color.lane = (Math.floor(n / 2) % 2 === 0) ? '#ffffff' : '#2b2d42';
+          this.menuSegments.push(seg);
+        }
+      }
+
+      // Sky & Horizon
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, height / 2);
+      skyGrad.addColorStop(0, '#0b132b');
+      skyGrad.addColorStop(1, '#1c2541');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, width, height / 2);
+
+      this.renderHorizonScenery(ctx, { hasBuildings: true, sceneryType: 'city' }, width, height);
+
+      ctx.fillStyle = '#1a1d20';
+      ctx.fillRect(0, height / 2, width, height / 2);
+
+      const menuTrackLen = this.menuSegments.length * this.segmentLength;
+      const baseSegIdx = Math.floor(this.menuPosition / this.segmentLength) % this.menuSegments.length;
+      const baseSegment = this.menuSegments[baseSegIdx];
+      const basePercent = (this.menuPosition % this.segmentLength) / this.segmentLength;
+      let maxY = height;
+      let x = 0;
+      let dx = -(baseSegment.curve * basePercent);
+
+      const drawDist = Math.min(100, this.drawDistance);
+      for (let n = 0; n < drawDist; n++) {
+        const seg = this.menuSegments[(baseSegment.index + n) % this.menuSegments.length];
+        const loopZ = (seg.index < baseSegment.index) ? menuTrackLen : 0;
+
+        this.project(seg.p1, -x, this.cameraHeight, (this.menuPosition % menuTrackLen) - loopZ, width, height);
+        this.project(seg.p2, -x - dx, this.cameraHeight, (this.menuPosition % menuTrackLen) - loopZ, width, height);
+
+        x += dx;
+        dx += seg.curve;
+
+        if (seg.p1.camera.z <= this.cameraDepth || seg.p2.screen.y >= maxY || seg.p2.screen.y >= seg.p1.screen.y) {
+          continue;
+        }
+
+        this.renderRoadSegment(ctx, width, seg, maxY);
+        maxY = seg.p1.screen.y;
+      }
     }
 
     project(p, cameraX, cameraY, cameraZ, width, height) {
@@ -2027,22 +2163,18 @@
       const p1 = segment.p1.screen;
       const p2 = segment.p2.screen;
 
-      // Road grass shoulder
       ctx.fillStyle = segment.color.grass;
       ctx.fillRect(0, p2.y, width, p1.y - p2.y);
 
-      // Rumble strip curbs
       const r1 = p1.w / Math.max(6, 2 * this.lanes);
       const r2 = p2.w / Math.max(6, 2 * this.lanes);
       ctx.fillStyle = segment.color.rumble;
       this.drawPolygon(ctx, p1.x - p1.w - r1, p1.y, p1.x - p1.w, p1.y, p2.x - p2.w, p2.y, p2.x - p2.w - r2, p2.y);
       this.drawPolygon(ctx, p1.x + p1.w + r1, p1.y, p1.x + p1.w, p1.y, p2.x + p2.w, p2.y, p2.x + p2.w + r2, p2.y);
 
-      // Road asphalt
       ctx.fillStyle = segment.color.road;
       this.drawPolygon(ctx, p1.x - p1.w, p1.y, p1.x + p1.w, p1.y, p2.x + p2.w, p2.y, p2.x - p2.w, p2.y);
 
-      // White Lane Markers
       if (segment.color.lane) {
         const l1 = p1.w / 32;
         const l2 = p2.w / 32;
@@ -2071,18 +2203,15 @@
       const horizonY = height / 2;
       ctx.save();
       if (env.hasBuildings) {
-        // Neon city skyline silhouettes
         ctx.fillStyle = '#0a0d18';
         for (let i = 0; i < width; i += 50) {
           const bH = 40 + (Math.sin(i * 13) * 35 + 35);
           ctx.fillRect(i, horizonY - bH, 44, bH);
-          // Neon window lights
           ctx.fillStyle = '#00f0ff';
           if (i % 3 === 0) ctx.fillRect(i + 10, horizonY - bH + 10, 4, 4);
           ctx.fillStyle = '#0a0d18';
         }
       } else if (env.sceneryType === 'desert') {
-        // Rolling dunes
         ctx.fillStyle = '#5c3d2e';
         ctx.beginPath();
         ctx.moveTo(0, horizonY);
@@ -2093,7 +2222,6 @@
         ctx.closePath();
         ctx.fill();
       } else {
-        // Mountain peaks
         ctx.fillStyle = '#1e293b';
         ctx.beginPath();
         ctx.moveTo(0, horizonY);
@@ -2118,17 +2246,14 @@
 
       ctx.save();
       if (sprite.type === 'city' || sprite.type === 'night_city') {
-        // Neon Billboard / Street Lamp
         ctx.fillStyle = '#0f172a';
         ctx.fillRect(spriteX - spriteW / 6, spriteY - spriteH, spriteW / 3, spriteH);
         ctx.fillStyle = (segment.index % 2 === 0) ? '#ff0055' : '#00f0ff';
         ctx.fillRect(spriteX - spriteW / 2, spriteY - spriteH, spriteW, spriteH / 3);
       } else if (sprite.type === 'desert') {
-        // Cactus / Desert Rock
         ctx.fillStyle = '#3f6212';
         ctx.fillRect(spriteX - spriteW / 8, spriteY - spriteH, spriteW / 4, spriteH);
       } else if (sprite.type === 'snow') {
-        // Pine tree covered in snow
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         ctx.moveTo(spriteX, spriteY - spriteH);
@@ -2137,7 +2262,6 @@
         ctx.closePath();
         ctx.fill();
       } else {
-        // Standard green tree
         ctx.fillStyle = '#78350f';
         ctx.fillRect(spriteX - spriteW / 10, spriteY - spriteH / 2, spriteW / 5, spriteH / 2);
         ctx.fillStyle = '#15803d';
@@ -2158,16 +2282,13 @@
       if (gateW < 10) return;
 
       ctx.save();
-      // Pillars
       ctx.fillStyle = '#334155';
       ctx.fillRect(gateX - gateW / 2, gateY - gateH, gateW * 0.08, gateH);
       ctx.fillRect(gateX + gateW / 2 - gateW * 0.08, gateY - gateH, gateW * 0.08, gateH);
 
-      // Banner Crossbar
       ctx.fillStyle = isFinish ? '#ffd700' : '#00f0ff';
       ctx.fillRect(gateX - gateW / 2, gateY - gateH, gateW, gateH * 0.35);
 
-      // Label text
       ctx.fillStyle = '#000000';
       ctx.font = `bold ${Math.max(10, Math.round(gateH * 0.22))}px sans-serif`;
       ctx.textAlign = 'center';
@@ -2196,6 +2317,7 @@
     renderTrafficVehicles(ctx, width, height) {
       this.trafficCars.forEach(car => {
         const seg = this.findSegment(car.z);
+        if (!seg) return;
         const relZ = car.z - this.position;
         if (relZ <= 0 || relZ > this.drawDistance * this.segmentLength) return;
 
@@ -2207,21 +2329,16 @@
 
         if (carW < 6 || carY > height) return;
 
-        // Render Traffic Car Silhouette
         ctx.save();
-        // Shadow
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.fillRect(carX - carW / 2, carY - carH * 0.1, carW, carH * 0.2);
 
-        // Body
         ctx.fillStyle = car.color;
         ctx.fillRect(carX - carW / 2, carY - carH, carW, carH * 0.85);
 
-        // Roof
         ctx.fillStyle = '#1e293b';
         ctx.fillRect(carX - carW * 0.35, carY - carH * 0.95, carW * 0.7, carH * 0.5);
 
-        // Taillights
         ctx.fillStyle = '#ef4444';
         ctx.fillRect(carX - carW * 0.45, carY - carH * 0.4, carW * 0.2, carH * 0.2);
         ctx.fillRect(carX + carW * 0.25, carY - carH * 0.4, carW * 0.2, carH * 0.2);
@@ -2240,7 +2357,6 @@
 
       ctx.save();
 
-      // Steering tilt
       let steerAngle = 0;
       if (this.keys.left) steerAngle = -0.06;
       if (this.keys.right) steerAngle = 0.06;
@@ -2248,7 +2364,6 @@
       ctx.translate(carX, carY);
       ctx.rotate(steerAngle);
 
-      // Exhaust nitro flames
       if (this.isNitroActive && this.speed > 50) {
         ctx.fillStyle = '#00f0ff';
         ctx.shadowColor = '#00f0ff';
@@ -2258,28 +2373,23 @@
         ctx.shadowBlur = 0;
       }
 
-      // Wheels
       ctx.fillStyle = '#111827';
       ctx.fillRect(-carW * 0.52, -carH * 0.25, carW * 0.12, carH * 0.35);
       ctx.fillRect(carW * 0.4, -carH * 0.25, carW * 0.12, carH * 0.35);
 
-      // Car Chassis
       ctx.fillStyle = carColor;
       ctx.beginPath();
       ctx.roundRect(-carW / 2, -carH, carW, carH * 0.85, [14, 14, 6, 6]);
       ctx.fill();
 
-      // Cockpit / Windshield
       ctx.fillStyle = '#0f172a';
       ctx.beginPath();
       ctx.roundRect(-carW * 0.35, -carH * 0.9, carW * 0.7, carH * 0.45, [10, 10, 4, 4]);
       ctx.fill();
 
-      // Racing Stripes
       ctx.fillStyle = car.accent || '#ffffff';
       ctx.fillRect(-carW * 0.08, -carH, carW * 0.16, carH * 0.85);
 
-      // Glowing Neon Taillights
       ctx.fillStyle = this.keys.slower ? '#ff0033' : '#ef4444';
       ctx.shadowColor = '#ff0055';
       ctx.shadowBlur = 12;
@@ -2316,7 +2426,6 @@
         }
       }
 
-      // Speed lines during Nitro
       if (this.isNitroActive && this.speed > 160) {
         ctx.strokeStyle = 'rgba(0, 240, 255, 0.3)';
         ctx.lineWidth = 2;
@@ -2332,9 +2441,30 @@
     }
   }
 
-  // Initialize Game once DOM is loaded
-  window.addEventListener('DOMContentLoaded', () => {
-    window.gameInstance = new GameController();
-  });
+  /* ==========================================================================
+     GLOBAL INITIALIZATION & SAFE STARTUP
+     ========================================================================== */
+
+  function initGame() {
+    if (window.__carGameInitialized) return;
+    window.__carGameInitialized = true;
+
+    try {
+      const controller = new GameController();
+      window.gameController = controller;
+      window.gameInstance = controller;
+      console.log('Car Rush 3D GameController initialized successfully!');
+    } catch (err) {
+      console.error('Failed to initialize GameController:', err);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initGame);
+  } else {
+    initGame();
+  }
+
+  window.addEventListener('load', initGame);
 
 })();

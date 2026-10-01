@@ -265,6 +265,12 @@ const GAME_LEVELS = (function generate100Levels() {
   return levels;
 })();
 
+if (typeof window !== 'undefined') {
+  window.GAME_LEVELS = GAME_LEVELS;
+  window.ENVIRONMENTS = ENVIRONMENTS;
+  window.MISSION_TYPES = MISSION_TYPES;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { GAME_LEVELS, ENVIRONMENTS, MISSION_TYPES };
 }
