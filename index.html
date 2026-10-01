@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Car Rush 3D - 100 Level Arcade Racing</title>
+  <meta name="description" content="Play Car Rush 3D: 100 progressive levels of high-octane 3D arcade racing with car upgrades, customizable drivers, and nitro boosts.">
+  <meta name="theme-color" content="#0a0e17">
+  <!-- Web App Manifest meta -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- App Container -->
+  <div id="game-container" class="game-container">
+    
+    <!-- Canvas for 3D Pseudo-Engine Rendering -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- Portrait Orientation Alert (Informative banner, non-blocking) -->
+    <div id="orientation-banner" class="orientation-banner hidden">
+      <div class="banner-content">
+        <span class="banner-icon">📱🔄</span>
+        <div class="banner-text">
+          <strong>LANDSCAPE RECOMMENDED</strong>
+          <span>Rotate your phone for the best ultra-wide racing experience.</span>
+        </div>
+        <button id="btn-dismiss-orientation" class="btn-banner-close" aria-label="Dismiss banner">✕</button>
+      </div>
+    </div>
+
+    <!-- Floating HUD Overlay (Active during gameplay) -->
+    <div id="hud-overlay" class="hud-overlay hidden">
+      <!-- Top Status Bar -->
+      <div class="hud-top-bar">
+        <!-- Position & Level Info -->
+        <div class="hud-panel hud-level-info">
+          <div class="hud-level-badge" id="hud-level-badge">LVL 1</div>
+          <div class="hud-pos-badge" id="hud-pos-badge">1st</div>
+        </div>
+
+        <!-- Mission Goal Objective Tracker -->
+        <div class="hud-panel hud-objective-box">
+          <div class="objective-title">MISSION</div>
+          <div class="objective-desc" id="hud-objective-text">Overtake 5 Cars: <span id="hud-objective-val">0/5</span></div>
+          <div class="objective-progress-track">
+            <div id="hud-objective-bar" class="objective-progress-fill"></div>
+          </div>
+        </div>
+
+        <!-- Score & Multiplier -->
+        <div class="hud-panel hud-score-box">
+          <div class="hud-score-label">SCORE</div>
+          <div class="hud-score-val" id="hud-score-val">0</div>
+          <div class="hud-combo-badge hidden" id="hud-combo-badge">x1 COMBO</div>
+        </div>
+
+        <!-- Coins Counter -->
+        <div class="hud-panel hud-coins-box">
+          <span class="coin-icon">🪙</span>
+          <span id="hud-coins-val">0</span>
+        </div>
+
+        <!-- Time Remaining Counter -->
+        <div class="hud-panel hud-timer-box">
+          <div class="hud-timer-label">TIME</div>
+          <div class="hud-timer-val" id="hud-timer-val">60.0</div>
+        </div>
+
+        <!-- Pause Button -->
+        <button id="btn-hud-pause" class="hud-btn-pause" aria-label="Pause Game">
+          <span>⏸</span>
+        </button>
+      </div>
+
+      <!-- Center Floating Score Popups Container -->
+      <div id="hud-popups-container" class="hud-popups-container"></div>
+
+      <!-- Bottom Gauge & Controls Bar -->
+      <div class="hud-bottom-bar">
+        <!-- Speedometer & Nitro Cluster -->
+        <div class="speed-cluster">
+          <div class="speed-digital">
+            <span id="hud-speed-num">0</span>
+            <span class="speed-unit">KM/H</span>
+          </div>
+          <!-- Durability / Health Bar -->
+          <div class="hud-bar-container health-bar-container">
+            <div class="bar-header">
+              <span>ARMOR</span>
+              <span id="hud-health-pct">100%</span>
+            </div>
+            <div class="bar-track">
+              <div id="hud-health-fill" class="bar-fill health-fill" style="width: 100%;"></div>
+            </div>
+          </div>
+          <!-- Nitro Bar -->
+          <div class="hud-bar-container nitro-bar-container">
+            <div class="bar-header">
+              <span>NITRO [SPACE]</span>
+              <span id="hud-nitro-pct">100%</span>
+            </div>
+            <div class="bar-track">
+              <div id="hud-nitro-fill" class="bar-fill nitro-fill" style="width: 100%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Track Distance Progress Bar -->
+        <div class="track-progress-container">
+          <div class="track-start-pin">🏁</div>
+          <div class="track-progress-track">
+            <div id="hud-player-progress-marker" class="player-marker">🏎️</div>
+          </div>
+          <div class="track-end-pin">🏆</div>
+        </div>
+      </div>
+
+      <!-- On-Screen Touch Controls (Mobile Friendly, Visible on touch or auto) -->
+      <div id="touch-controls" class="touch-controls">
+        <!-- Left Steering Area -->
+        <div class="touch-group touch-left-group">
+          <button id="btn-touch-left" class="touch-btn touch-steer-btn" aria-label="Steer Left">
+            <span class="touch-icon">◀</span>
+            <span class="touch-label">LEFT</span>
+          </button>
+          <button id="btn-touch-right" class="touch-btn touch-steer-btn" aria-label="Steer Right">
+            <span class="touch-icon">▶</span>
+            <span class="touch-label">RIGHT</span>
+          </button>
+        </div>
+
+        <!-- Right Gas/Brake/Nitro Area -->
+        <div class="touch-group touch-right-group">
+          <button id="btn-touch-brake" class="touch-btn touch-brake-btn" aria-label="Brake or Reverse">
+            <span class="touch-icon">🛑</span>
+            <span class="touch-label">BRAKE</span>
+          </button>
+          <button id="btn-touch-nitro" class="touch-btn touch-nitro-btn" aria-label="Engage Nitro Boost">
+            <span class="touch-icon">⚡</span>
+            <span class="touch-label">NITRO</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- UI SCREENS CONTAINER -->
+    <div id="ui-screens" class="ui-screens">
+
+      <!-- 1. MAIN MENU SCREEN -->
+      <section id="screen-main-menu" class="ui-screen active">
+        <!-- Header User Profile Bar -->
+        <header class="menu-profile-bar glass-panel">
+          <div class="profile-driver-info" id="btn-header-profile">
+            <div class="driver-avatar-thumb" id="menu-driver-avatar">🏎️</div>
+            <div class="driver-details">
+              <span class="driver-name" id="menu-driver-name">RAVI</span>
+              <span class="driver-title" id="menu-driver-title">Street Racer</span>
+            </div>
+          </div>
+
+          <div class="profile-stats-group">
+            <div class="stat-pill coin-pill">
+              <span class="pill-icon">🪙</span>
+              <span class="pill-val" id="menu-coins-val">1,500</span>
+            </div>
+            <div class="stat-pill xp-pill">
+              <span class="pill-icon">⭐</span>
+              <span class="pill-val" id="menu-xp-val">XP 250</span>
+            </div>
+            <div class="stat-pill best-pill">
+              <span class="pill-icon">🏆</span>
+              <span class="pill-val" id="menu-best-score">BEST: 0</span>
+            </div>
+          </div>
+        </header>
+
+        <!-- Hero Title Showcase -->
+        <div class="menu-hero-area">
+          <div class="title-tag">ARCADE PRO SIMULATOR</div>
+          <h1 class="game-logo">CAR RUSH <span class="logo-accent">3D</span></h1>
+          <div class="subtitle-tag">100 LEVEL GRAND PRIX CHALLENGE</div>
+
+          <!-- Selected Car Preview Badge -->
+          <div class="hero-car-card glass-panel" id="hero-car-preview-card">
+            <div class="car-badge-header">
+              <span class="car-class-badge" id="hero-car-class">SPORT GT</span>
+              <span class="car-name-title" id="hero-car-name">Starter GT</span>
+            </div>
+            <div class="car-stats-mini">
+              <div class="mini-stat">
+                <span class="mini-label">SPD</span>
+                <div class="mini-bar"><div class="mini-fill" id="hero-stat-speed" style="width: 50%;"></div></div>
+              </div>
+              <div class="mini-stat">
+                <span class="mini-label">ACC</span>
+                <div class="mini-bar"><div class="mini-fill" id="hero-stat-acc" style="width: 45%;"></div></div>
+              </div>
+              <div class="mini-stat">
+                <span class="mini-label">NTR</span>
+                <div class="mini-bar"><div class="mini-fill" id="hero-stat-nitro" style="width: 55%;"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Primary RACE NOW Button -->
+          <button id="btn-main-play" class="btn-primary-action btn-race-pulse" aria-label="Race Now">
+            <span class="btn-icon">⚡</span>
+            <span class="btn-text">RACE NOW</span>
+            <span class="btn-level-sub" id="btn-race-lvl-sub">LEVEL 1</span>
+          </button>
+        </div>
+
+        <!-- Main Navigation Grid -->
+        <nav class="menu-nav-grid" aria-label="Main Navigation">
+          <button id="btn-nav-levels" class="nav-card-btn glass-panel" aria-label="View 100 Level Map">
+            <span class="nav-icon">🗺️</span>
+            <span class="nav-title">LEVELS</span>
+            <span class="nav-sub" id="nav-levels-progress">1 / 100</span>
+          </button>
+          <button id="btn-nav-garage" class="nav-card-btn glass-panel" aria-label="Open Car Garage">
+            <span class="nav-icon">🏎️</span>
+            <span class="nav-title">GARAGE</span>
+            <span class="nav-sub">8 Cars</span>
+          </button>
+          <button id="btn-nav-characters" class="nav-card-btn glass-panel" aria-label="Select Driver Characters">
+            <span class="nav-icon">👤</span>
+            <span class="nav-title">DRIVERS</span>
+            <span class="nav-sub">6 Talents</span>
+          </button>
+          <button id="btn-nav-upgrades" class="nav-card-btn glass-panel" aria-label="Upgrade Car Parts">
+            <span class="nav-icon">⚡</span>
+            <span class="nav-title">UPGRADE</span>
+            <span class="nav-sub">Tuning</span>
+          </button>
+          <button id="btn-nav-missions" class="nav-card-btn glass-panel" aria-label="Check Missions">
+            <span class="nav-icon">🎯</span>
+            <span class="nav-title">MISSIONS</span>
+            <span class="nav-sub" id="nav-missions-badge">Daily</span>
+          </button>
+          <button id="btn-nav-leaderboard" class="nav-card-btn glass-panel" aria-label="View Local Leaderboard">
+            <span class="nav-icon">🏆</span>
+            <span class="nav-title">RANKS</span>
+            <span class="nav-sub">Records</span>
+          </button>
+          <button id="btn-nav-settings" class="nav-card-btn glass-panel" aria-label="Open Settings">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-title">SETTINGS</span>
+            <span class="nav-sub">Audio/Video</span>
+          </button>
+        </nav>
+      </section>
+
+      <!-- 2. 100 LEVEL MAP SCREEN -->
+      <section id="screen-levels" class="ui-screen hidden">
+        <div class="screen-header glass-panel">
+          <button id="btn-back-from-levels" class="btn-icon-back" aria-label="Back to Main Menu">◀ BACK</button>
+          <div class="screen-title-group">
+            <h2 class="screen-title">100 RACING CAMPAIGN</h2>
+            <span class="screen-subtitle">Conquer each level to unlock the Grand Championship</span>
+          </div>
+          <div class="stat-pill coin-pill">
+            <span>🪙</span>
+            <span class="global-coins-val">0</span>
+          </div>
+        </div>
+
+        <!-- Zone Selector Tabs -->
+        <div class="zone-tabs-scroller">
+          <div class="zone-tabs" id="zone-tabs-container">
+            <!-- Dynamically populated or switchable zones 1-10 -->
+          </div>
+        </div>
+
+        <!-- 100 Level Grid Scroll Area -->
+        <div class="levels-grid-container" id="levels-grid-container">
+          <!-- 100 Level Nodes populated by JavaScript -->
+        </div>
+      </section>
+
+      <!-- 3. LEVEL BRIEFING MODAL -->
+      <div id="modal-level-briefing" class="ui-modal hidden">
+        <div class="modal-card glass-panel">
+          <div class="modal-badge-row">
+            <span class="level-zone-tag" id="brief-zone-tag">ZONE 1: NEON CITY</span>
+            <span class="level-diff-tag" id="brief-diff-tag">EASY</span>
+          </div>
+          <h2 class="modal-title" id="brief-level-title">Level 1: City Sprint</h2>
+          <div class="brief-env-visual" id="brief-env-visual">
+            <span class="env-icon" id="brief-env-icon">🌆</span>
+            <span class="env-name" id="brief-env-name">Neon City • Clear Night</span>
+          </div>
+
+          <div class="mission-brief-box">
+            <div class="brief-row">
+              <span class="brief-label">🎯 PRIMARY MISSION:</span>
+              <span class="brief-value highlight" id="brief-mission-title">Overtake 5 Cars</span>
+            </div>
+            <p class="brief-desc" id="brief-mission-desc">Maneuver swiftly through civilian traffic and pass 5 vehicles before time expires.</p>
+            <div class="brief-stats-grid">
+              <div class="brief-stat-item">
+                <span class="bs-label">TRACK LENGTH</span>
+                <span class="bs-val" id="brief-distance">2,200 m</span>
+              </div>
+              <div class="brief-stat-item">
+                <span class="bs-label">TIME LIMIT</span>
+                <span class="bs-val" id="brief-time">45 s</span>
+              </div>
+              <div class="brief-stat-item">
+                <span class="bs-label">TARGET SCORE</span>
+                <span class="bs-val" id="brief-score">2,500 pts</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="brief-rewards-box">
+            <div class="reward-title">VICTORY REWARDS:</div>
+            <div class="reward-badges">
+              <span class="reward-badge">🪙 +<span id="brief-reward-coins">350</span> Coins</span>
+              <span class="reward-badge">⭐ +<span id="brief-reward-xp">180</span> XP</span>
+              <span class="reward-badge">🏆 Up to 3 Stars</span>
+            </div>
+          </div>
+
+          <div class="modal-action-row">
+            <button id="btn-close-briefing" class="btn-secondary" aria-label="Cancel">CANCEL</button>
+            <button id="btn-start-level-race" class="btn-primary-action" aria-label="Start Race">
+              <span>START RACE</span> ➔
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. GARAGE SCREEN -->
+      <section id="screen-garage" class="ui-screen hidden">
+        <div class="screen-header glass-panel">
+          <button id="btn-back-from-garage" class="btn-icon-back" aria-label="Back to Main Menu">◀ BACK</button>
+          <div class="screen-title-group">
+            <h2 class="screen-title">VEHICLE GARAGE</h2>
+            <span class="screen-subtitle">Select, customize, and examine your high-performance fleet</span>
+          </div>
+          <div class="stat-pill coin-pill">
+            <span>🪙</span>
+            <span class="global-coins-val">0</span>
+          </div>
+        </div>
+
+        <div class="garage-content-layout">
+          <!-- Car Display Showcase Area -->
+          <div class="garage-viewport glass-panel">
+            <div class="garage-car-header">
+              <h3 class="car-showcase-title" id="garage-car-name">Starter GT</h3>
+              <span class="car-unlocked-badge" id="garage-unlocked-badge">OWNED</span>
+            </div>
+
+            <!-- Stylized Car Visual Projection / Silhouette -->
+            <div class="car-3d-stage">
+              <div class="car-pedestal"></div>
+              <div class="car-silhouette-render" id="garage-car-visual">
+                <div class="car-body-box" id="garage-car-paint-body">
+                  <div class="car-windshield"></div>
+                  <div class="car-racing-stripes"></div>
+                  <div class="car-headlights"></div>
+                  <div class="car-taillights"></div>
+                  <div class="car-spoilers"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Paint Color Selection Palette -->
+            <div class="paint-selector-row">
+              <span class="palette-label">CUSTOM PAINT:</span>
+              <div class="color-options" id="garage-color-options">
+                <!-- Color dots -->
+              </div>
+            </div>
+
+            <!-- Car Selection or Purchase Action -->
+            <div class="garage-action-bar">
+              <button id="btn-garage-action" class="btn-primary-action" aria-label="Select Car">
+                EQUIP VEHICLE
+              </button>
+              <button id="btn-garage-to-upgrades" class="btn-secondary" aria-label="Tune and Upgrade">
+                ⚡ TUNE IN UPGRADES
+              </button>
+            </div>
+          </div>
+
+          <!-- Car Fleet Selector & Technical Specs -->
+          <div class="garage-sidebar">
+            <!-- Specifications -->
+            <div class="car-spec-sheet glass-panel">
+              <h4 class="spec-heading">PERFORMANCE SPECS</h4>
+              <div class="spec-bar-row">
+                <span class="spec-label">TOP SPEED</span>
+                <div class="spec-bar"><div class="spec-fill" id="spec-speed-fill"></div></div>
+                <span class="spec-num" id="spec-speed-val">220 km/h</span>
+              </div>
+              <div class="spec-bar-row">
+                <span class="spec-label">ACCELERATION</span>
+                <div class="spec-bar"><div class="spec-fill" id="spec-acc-fill"></div></div>
+                <span class="spec-num" id="spec-acc-val">7.2/10</span>
+              </div>
+              <div class="spec-bar-row">
+                <span class="spec-label">HANDLING</span>
+                <div class="spec-bar"><div class="spec-fill" id="spec-handling-fill"></div></div>
+                <span class="spec-num" id="spec-handling-val">6.8/10</span>
+              </div>
+              <div class="spec-bar-row">
+                <span class="spec-label">BRAKING</span>
+                <div class="spec-bar"><div class="spec-fill" id="spec-braking-fill"></div></div>
+                <span class="spec-num" id="spec-braking-val">7.5/10</span>
+              </div>
+              <div class="spec-bar-row">
+                <span class="spec-label">NITRO EFFICIENCY</span>
+                <div class="spec-bar"><div class="spec-fill" id="spec-nitro-fill"></div></div>
+                <span class="spec-num" id="spec-nitro-val">8.0/10</span>
+              </div>
+              <div class="spec-bar-row">
+                <span class="spec-label">ARMOR DURABILITY</span>
+                <div class="spec-bar"><div class="spec-fill" id="spec-durability-fill"></div></div>
+                <span class="spec-num" id="spec-durability-val">100 HP</span>
+              </div>
+            </div>
+
+            <!-- Car List Thumbnails -->
+            <div class="car-carousel-list" id="garage-car-list">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. UPGRADES SCREEN -->
+      <section id="screen-upgrades" class="ui-screen hidden">
+        <div class="screen-header glass-panel">
+          <button id="btn-back-from-upgrades" class="btn-icon-back" aria-label="Back to Main Menu">◀ BACK</button>
+          <div class="screen-title-group">
+            <h2 class="screen-title">PERFORMANCE TUNING SHOP</h2>
+            <span class="screen-subtitle">Invest in top-tier performance parts to dominate the leaderboard</span>
+          </div>
+          <div class="stat-pill coin-pill">
+            <span>🪙</span>
+            <span class="global-coins-val">0</span>
+          </div>
+        </div>
+
+        <div class="upgrades-grid-layout" id="upgrades-parts-container">
+          <!-- 7 Upgrade Categories populated by JavaScript -->
+        </div>
+      </section>
+
+      <!-- 6. CHARACTERS SCREEN -->
+      <section id="screen-characters" class="ui-screen hidden">
+        <div class="screen-header glass-panel">
+          <button id="btn-back-from-characters" class="btn-icon-back" aria-label="Back to Main Menu">◀ BACK</button>
+          <div class="screen-title-group">
+            <h2 class="screen-title">RACING DRIVER ROSTER</h2>
+            <span class="screen-subtitle">Choose your legendary pilot with passive mastery skills</span>
+          </div>
+          <div class="stat-pill coin-pill">
+            <span>🪙</span>
+            <span class="global-coins-val">0</span>
+          </div>
+        </div>
+
+        <div class="characters-grid-container" id="characters-roster-container">
+          <!-- 6 Characters populated by JavaScript -->
+        </div>
+      </section>
+
+      <!-- 7. MISSIONS SCREEN -->
+      <section id="screen-missions" class="ui-screen hidden">
+        <div class="screen-header glass-panel">
+          <button id="btn-back-from-missions" class="btn-icon-back" aria-label="Back to Main Menu">◀ BACK</button>
+          <div class="screen-title-group">
+            <h2 class="screen-title">CAREER MISSIONS</h2>
+            <span class="screen-subtitle">Complete bounties and challenges for massive rewards</span>
+          </div>
+          <div class="stat-pill coin-pill">
+            <span>🪙</span>
+            <span class="global-coins-val">0</span>
+          </div>
+        </div>
+
+        <div class="missions-list-container" id="missions-list-container">
+          <!-- Missions populated dynamically -->
+        </div>
+      </section>
+
+      <!-- 8. LEADERBOARD SCREEN -->
+      <section id="screen-leaderboard" class="ui-screen hidden">
+        <div class="screen-header glass-panel">
+          <button id="btn-back-from-leaderboard" class="btn-icon-back" aria-label="Back to Main Menu">◀ BACK</button>
+          <div class="screen-title-group">
+            <h2 class="screen-title">LOCAL LEADERBOARD</h2>
+            <span class="screen-subtitle">Offline High Scores & Record Lap Hall of Fame</span>
+          </div>
+          <div class="stat-pill coin-pill">
+            <span>🪙</span>
+            <span class="global-coins-val">0</span>
+          </div>
+        </div>
+
+        <div class="leaderboard-table-card glass-panel">
+          <div class="leaderboard-header-row">
+            <span class="col-rank">RANK</span>
+            <span class="col-driver">PILOT</span>
+            <span class="col-car">VEHICLE</span>
+            <span class="col-level">STAGE</span>
+            <span class="col-score">HIGH SCORE</span>
+          </div>
+          <div class="leaderboard-body" id="leaderboard-rows-container">
+            <!-- Rows dynamically generated -->
+          </div>
+        </div>
+      </section>
+
+      <!-- 9. SETTINGS SCREEN -->
+      <section id="screen-settings" class="ui-screen hidden">
+        <div class="screen-header glass-panel">
+          <button id="btn-back-from-settings" class="btn-icon-back" aria-label="Back to Main Menu">◀ BACK</button>
+          <div class="screen-title-group">
+            <h2 class="screen-title">SETTINGS & CONTROLS</h2>
+            <span class="screen-subtitle">Configure audio, rendering quality, and steering preferences</span>
+          </div>
+        </div>
+
+        <div class="settings-form-layout glass-panel">
+          <!-- Audio Settings -->
+          <div class="settings-group">
+            <h3 class="settings-section-title">AUDIO SETTINGS</h3>
+            <div class="setting-item-row">
+              <div class="setting-text">
+                <span class="setting-title">Synthesizer Background Music</span>
+                <span class="setting-sub">Dynamic synthwave soundtrack during races</span>
+              </div>
+              <button id="btn-toggle-music" class="btn-toggle active" aria-label="Toggle Music">ON</button>
+            </div>
+
+            <div class="setting-item-row">
+              <div class="setting-text">
+                <span class="setting-title">Sound Effects (Engine, Nitro, Drift)</span>
+                <span class="setting-sub">Web Audio procedural engine and impact audio</span>
+              </div>
+              <button id="btn-toggle-sound" class="btn-toggle active" aria-label="Toggle Sound Effects">ON</button>
+            </div>
+
+            <div class="setting-item-row">
+              <div class="setting-text">
+                <span class="setting-title">Device Vibration Haptics</span>
+                <span class="setting-sub">Haptic pulse feedback on nitro and crashes</span>
+              </div>
+              <button id="btn-toggle-vibration" class="btn-toggle active" aria-label="Toggle Haptics">ON</button>
+            </div>
+          </div>
+
+          <!-- Video & Performance -->
+          <div class="settings-group">
+            <h3 class="settings-section-title">GRAPHICS & PERFORMANCE</h3>
+            <div class="setting-item-row">
+              <div class="setting-text">
+                <span class="setting-title">Rendering Quality</span>
+                <span class="setting-sub">Lower quality enhances FPS on older mobile phones</span>
+              </div>
+              <div class="segmented-control" id="quality-selector">
+                <button class="seg-btn" data-quality="low">LOW</button>
+                <button class="seg-btn" data-quality="medium">MED</button>
+                <button class="seg-btn active" data-quality="high">HIGH</button>
+              </div>
+            </div>
+
+            <div class="setting-item-row">
+              <div class="setting-text">
+                <span class="setting-title">Steering Sensitivity</span>
+                <span class="setting-sub">Adjust turning responsiveness for keyboard & touch</span>
+              </div>
+              <div class="slider-control">
+                <input type="range" id="steering-sens-slider" min="0.6" max="1.8" step="0.1" value="1.0" aria-label="Steering Sensitivity">
+                <span id="steering-sens-val">1.0x</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Progress Reset -->
+          <div class="settings-group danger-zone">
+            <h3 class="settings-section-title">SAVE DATA MANAGEMENT</h3>
+            <div class="setting-item-row">
+              <div class="setting-text">
+                <span class="setting-title">Reset Campaign Progress</span>
+                <span class="setting-sub">Wipe all coins, upgrades, and 100 level records</span>
+              </div>
+              <button id="btn-reset-save" class="btn-danger" aria-label="Reset All Saved Progress">RESET DATA</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 10. PAUSE MODAL -->
+      <div id="modal-pause" class="ui-modal hidden">
+        <div class="modal-card pause-card glass-panel">
+          <h2 class="modal-title">GAME PAUSED</h2>
+          <p class="pause-level-info" id="pause-level-text">Level 1 • Neon City</p>
+
+          <div class="pause-buttons-column">
+            <button id="btn-pause-resume" class="btn-primary-action" aria-label="Resume Race">RESUME</button>
+            <button id="btn-pause-restart" class="btn-secondary" aria-label="Restart Race">RESTART RACE</button>
+            <button id="btn-pause-settings" class="btn-secondary" aria-label="Settings">SETTINGS</button>
+            <button id="btn-pause-quit" class="btn-secondary" aria-label="Quit to Level Map">QUIT TO MAP</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 11. LEVEL COMPLETE MODAL -->
+      <div id="modal-level-complete" class="ui-modal hidden">
+        <div class="modal-card result-card victory-card glass-panel">
+          <div class="result-badge-anim">🏆</div>
+          <h2 class="result-headline" id="complete-headline">LEVEL COMPLETE!</h2>
+          <div class="result-stars-row" id="complete-stars-container">
+            <span class="result-star active">★</span>
+            <span class="result-star active">★</span>
+            <span class="result-star">★</span>
+          </div>
+
+          <div class="result-metrics-grid">
+            <div class="result-metric">
+              <span class="rm-label">SCORE</span>
+              <span class="rm-val highlight" id="complete-score">14,250</span>
+            </div>
+            <div class="result-metric">
+              <span class="rm-label">COMPLETION TIME</span>
+              <span class="rm-val" id="complete-time">00:38.2</span>
+            </div>
+            <div class="result-metric">
+              <span class="rm-label">OVERTAKES</span>
+              <span class="rm-val" id="complete-overtakes">12</span>
+            </div>
+            <div class="result-metric">
+              <span class="rm-label">NEAR MISSES</span>
+              <span class="rm-val" id="complete-near-misses">5</span>
+            </div>
+          </div>
+
+          <div class="result-rewards-banner">
+            <div class="reward-item">
+              <span class="ri-icon">🪙</span>
+              <span class="ri-val" id="complete-coins-earned">+450 Coins</span>
+            </div>
+            <div class="reward-item">
+              <span class="ri-icon">⭐</span>
+              <span class="ri-val" id="complete-xp-earned">+220 XP</span>
+            </div>
+          </div>
+
+          <!-- Championship Special Banner for Level 100 -->
+          <div id="champ-grand-banner" class="champ-grand-banner hidden">
+            🎉 CONGRATULATIONS! YOU ARE THE GRAND CHAMPION OF ALL 100 LEVELS! 🏆
+          </div>
+
+          <div class="modal-action-row">
+            <button id="btn-complete-replay" class="btn-secondary" aria-label="Replay Level">REPLAY</button>
+            <button id="btn-complete-map" class="btn-secondary" aria-label="Level Map">LEVEL MAP</button>
+            <button id="btn-complete-next" class="btn-primary-action" aria-label="Next Level">
+              <span>NEXT LEVEL</span> ➔
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 12. GAME OVER MODAL -->
+      <div id="modal-game-over" class="ui-modal hidden">
+        <div class="modal-card result-card defeat-card glass-panel">
+          <div class="defeat-badge-anim">💥</div>
+          <h2 class="result-headline danger" id="defeat-headline">RACE FAILED</h2>
+          <p class="defeat-reason" id="defeat-reason-text">Your vehicle sustained critical collision damage!</p>
+
+          <div class="result-metrics-grid">
+            <div class="result-metric">
+              <span class="rm-label">DISTANCE REACHED</span>
+              <span class="rm-val" id="defeat-distance">1,420 m</span>
+            </div>
+            <div class="result-metric">
+              <span class="rm-label">SCORE EARNED</span>
+              <span class="rm-val" id="defeat-score">3,200</span>
+            </div>
+          </div>
+
+          <div class="modal-action-row">
+            <button id="btn-defeat-map" class="btn-secondary" aria-label="Quit to Map">LEVEL MAP</button>
+            <button id="btn-defeat-garage" class="btn-secondary" aria-label="Go to Garage/Upgrades">UPGRADE CAR</button>
+            <button id="btn-defeat-retry" class="btn-primary-action btn-danger-action" aria-label="Retry Level">
+              RETRY NOW
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Game Scripts -->
+  <script src="levels.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

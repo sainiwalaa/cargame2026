@@ -1,0 +1,6 @@
+{
+  "name": "Car Rush 3D",
+  "description": "Fast-paced 3D arcade car racing game with 100 progressive levels, missions, car upgrades, characters, and score system.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
