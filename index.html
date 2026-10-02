@@ -338,8 +338,8 @@
           </div>
 
           <div class="modal-action-row">
-            <button id="btn-close-briefing" class="btn-secondary" aria-label="Cancel">CANCEL</button>
-            <button id="btn-start-level-race" class="btn-primary-action" aria-label="Start Race">
+            <button id="btn-close-briefing" class="btn-secondary" aria-label="Cancel" onclick="document.getElementById('modal-level-briefing')?.classList.add('hidden');">CANCEL</button>
+            <button id="btn-start-level-race" class="btn-primary-action" aria-label="Start Race" onclick="if(window.gameController){window.gameController.startRace(window.gameController.currentLevelId||1);}">
               <span>START RACE</span> ➔
             </button>
           </div>

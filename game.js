@@ -8,35 +8,49 @@
 (function () {
   'use strict';
 
-  // Global Error and Promise Rejection Handlers for Live Debugging
-  window.onerror = function(msg, url, line, col, error) {
-    const text = `${msg} [${line}:${col}]`;
-    console.error('Car Rush Runtime Error:', text, error);
+  // Centralized Error Display Helper for Zero-Silent-Failures
+  function showCarRushError(err, fnName = 'General') {
+    const errorMsg = err?.message || String(err);
+    const errorStack = err?.stack || 'No stack trace';
+    let lineInfo = '-';
+    if (err?.lineNumber) {
+      lineInfo = String(err.lineNumber);
+    } else {
+      const match = errorStack.match(/:(\d+):(\d+)/);
+      if (match) lineInfo = `${match[1]}:${match[2]}`;
+    }
+    console.error(`[Car Rush Error in ${fnName}]`, err);
+
     const debugErr = document.getElementById('debug-error');
     if (debugErr) {
-      debugErr.textContent = String(msg).slice(0, 32);
+      debugErr.textContent = String(errorMsg).slice(0, 32);
       debugErr.parentElement?.classList.add('has-error');
     }
+
     const errPanel = document.getElementById('car-rush-error-panel');
     if (errPanel) {
       errPanel.classList.remove('hidden');
       const msgEl = document.getElementById('error-panel-msg');
-      if (msgEl) msgEl.textContent = String(msg);
+      if (msgEl) msgEl.textContent = errorMsg;
+      const fnEl = document.getElementById('error-panel-fn');
+      if (fnEl) fnEl.textContent = fnName;
+      const fileEl = document.getElementById('error-panel-file');
+      if (fileEl) fileEl.textContent = 'game.js';
       const lineEl = document.getElementById('error-panel-line');
-      if (lineEl) lineEl.textContent = `${line}:${col}`;
+      if (lineEl) lineEl.textContent = lineInfo;
       const stackEl = document.getElementById('error-panel-stack');
-      if (stackEl) stackEl.textContent = error?.stack || 'No stack trace';
+      if (stackEl) stackEl.textContent = errorStack;
     }
+  }
+
+  // Global Error and Promise Rejection Handlers for Live Debugging
+  window.onerror = function(msg, url, line, col, error) {
+    showCarRushError(error || new Error(`${msg} [${line}:${col}]`), 'window.onerror');
   };
 
   window.onunhandledrejection = function(e) {
-    const reason = e.reason?.message || e.reason || 'Promise rejected';
-    console.error('Car Rush Unhandled Rejection:', reason);
-    const debugErr = document.getElementById('debug-error');
-    if (debugErr) {
-      debugErr.textContent = String(reason).slice(0, 32);
-      debugErr.parentElement?.classList.add('has-error');
-    }
+    const reason = e.reason || new Error('Unhandled Promise Rejection');
+    showCarRushError(reason, 'window.onunhandledrejection');
   };
 
   // Cross-browser Canvas safe roundRect helper
@@ -847,13 +861,33 @@
       document.getElementById('btn-close-briefing')?.addEventListener('click', () => {
         this.audio.playClick();
         this.modals.briefing?.classList.add('hidden');
+        document.getElementById('modal-level-briefing')?.classList.add('hidden');
       });
 
-      document.getElementById('btn-start-level-race')?.addEventListener('click', () => {
+      const onStartRaceClick = (e) => {
+        if (e && e.cancelable) e.preventDefault();
+        console.log('START RACE CLICKED', this.currentLevelId);
         this.audio.playClick();
         this.audio.init();
         this.modals.briefing?.classList.add('hidden');
+        document.getElementById('modal-level-briefing')?.classList.add('hidden');
         this.startRace(this.currentLevelId || 1);
+      };
+
+      const startRaceBtn = document.getElementById('btn-start-level-race');
+      if (startRaceBtn) {
+        startRaceBtn.addEventListener('click', onStartRaceClick);
+        startRaceBtn.addEventListener('pointerdown', onStartRaceClick);
+        startRaceBtn.addEventListener('touchend', onStartRaceClick);
+      }
+
+      // Document-level event delegation as a secondary failsafe
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest('#btn-start-level-race');
+        if (btn) {
+          console.log('START RACE CLICKED (delegated)', this.currentLevelId);
+          onStartRaceClick(e);
+        }
       });
 
       // Level Complete Buttons
@@ -1072,15 +1106,16 @@
 
     resizeCanvas() {
       if (!this.canvas) return;
-      const dpr = (this.save.data.settings.quality === 'low') ? 1 : Math.min(window.devicePixelRatio || 1, 2);
-      this.width = window.innerWidth;
-      this.height = window.innerHeight;
-      this.canvas.width = this.width * dpr;
-      this.canvas.height = this.height * dpr;
+      const dpr = (this.save && this.save.data && this.save.data.settings.quality === 'low') ? 1 : Math.min(window.devicePixelRatio || 1, 2);
+      this.width = Math.max(320, window.innerWidth || document.documentElement.clientWidth || 800);
+      this.height = Math.max(240, window.innerHeight || document.documentElement.clientHeight || 600);
+      this.canvas.width = Math.round(this.width * dpr);
+      this.canvas.height = Math.round(this.height * dpr);
       if (this.ctx) {
-        this.ctx.scale(dpr, dpr);
+        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       }
       this.cameraDepth = 1 / Math.tan((this.fieldOfView / 2) * Math.PI / 180);
+      this.updateDebugBar();
     }
 
     applySavedSettings() {
