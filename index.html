@@ -18,15 +18,25 @@
     <!-- Canvas for 3D Pseudo-Engine Rendering -->
     <canvas id="game-canvas"></canvas>
 
-    <!-- Portrait Orientation Alert (Informative banner, non-blocking) -->
-    <div id="orientation-banner" class="orientation-banner hidden">
-      <div class="banner-content">
-        <span class="banner-icon">📱🔄</span>
-        <div class="banner-text">
-          <strong>LANDSCAPE RECOMMENDED</strong>
-          <span>Rotate your phone for the best ultra-wide racing experience.</span>
-        </div>
-        <button id="btn-dismiss-orientation" class="btn-banner-close" aria-label="Dismiss banner">✕</button>
+    <!-- Persistent Debug Bar -->
+    <div id="game-debug-bar" class="game-debug-bar">
+      <span class="debug-pill">STATE: <strong id="debug-state">MENU</strong></span>
+      <span class="debug-pill">LVL: <strong id="debug-level">1</strong></span>
+      <span class="debug-pill">CANVAS: <strong id="debug-canvas">READY</strong></span>
+      <span class="debug-pill">PLAYER: <strong id="debug-player">READY</strong></span>
+      <span class="debug-pill">LOOP: <strong id="debug-loop">RUNNING</strong></span>
+      <span class="debug-pill error-pill">ERR: <strong id="debug-error">NONE</strong></span>
+    </div>
+
+    <!-- Full-Screen Rotate Phone Overlay for Mobile Portrait -->
+    <div id="rotate-screen-overlay" class="rotate-screen-overlay hidden">
+      <div class="rotate-box">
+        <div class="phone-rotate-icon">📱 ➔ 📲</div>
+        <h2>PLEASE ROTATE DEVICE</h2>
+        <p>Car Rush 3D is designed for high-octane <strong>Landscape Racing</strong>.</p>
+        <button id="btn-force-landscape" class="btn-primary-action">
+          <span>ENTER FULLSCREEN & ROTATE</span>
+        </button>
       </div>
     </div>
 

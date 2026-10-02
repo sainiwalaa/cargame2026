@@ -8,6 +8,37 @@
 (function () {
   'use strict';
 
+  // Global Error and Promise Rejection Handlers for Live Debugging
+  window.onerror = function(msg, url, line, col, error) {
+    const text = `${msg} [${line}:${col}]`;
+    console.error('Car Rush Runtime Error:', text, error);
+    const debugErr = document.getElementById('debug-error');
+    if (debugErr) {
+      debugErr.textContent = String(msg).slice(0, 32);
+      debugErr.parentElement?.classList.add('has-error');
+    }
+    const errPanel = document.getElementById('car-rush-error-panel');
+    if (errPanel) {
+      errPanel.classList.remove('hidden');
+      const msgEl = document.getElementById('error-panel-msg');
+      if (msgEl) msgEl.textContent = String(msg);
+      const lineEl = document.getElementById('error-panel-line');
+      if (lineEl) lineEl.textContent = `${line}:${col}`;
+      const stackEl = document.getElementById('error-panel-stack');
+      if (stackEl) stackEl.textContent = error?.stack || 'No stack trace';
+    }
+  };
+
+  window.onunhandledrejection = function(e) {
+    const reason = e.reason?.message || e.reason || 'Promise rejected';
+    console.error('Car Rush Unhandled Rejection:', reason);
+    const debugErr = document.getElementById('debug-error');
+    if (debugErr) {
+      debugErr.textContent = String(reason).slice(0, 32);
+      debugErr.parentElement?.classList.add('has-error');
+    }
+  };
+
   // Cross-browser Canvas safe roundRect helper
   function drawRoundRect(ctx, x, y, width, height, radii) {
     if (typeof ctx.roundRect === 'function') {
@@ -566,6 +597,8 @@
       this.isVictory = false;
       this.isPaused = false;
       this.isPlayingRace = false;
+      this.gameState = 'MENU';
+      this.playerSteer = 0;
 
       // Menu background track animation
       this.menuPosition = 0;
@@ -586,10 +619,33 @@
       this.applySavedSettings();
       this.showScreen('menu');
       this.refreshAllUI();
+      this.updateDebugBar();
 
       // Main Loop
       this.mainLoopRunning = false;
       this.startMainLoop();
+    }
+
+    updateDebugBar(extraErr = null) {
+      const stateEl = document.getElementById('debug-state');
+      if (stateEl) stateEl.textContent = this.gameState || (this.isPlayingRace ? 'RACING' : 'MENU');
+      const lvlEl = document.getElementById('debug-level');
+      if (lvlEl) lvlEl.textContent = this.currentLevelId || 1;
+      const canvasEl = document.getElementById('debug-canvas');
+      if (canvasEl) canvasEl.textContent = (this.canvas && this.ctx) ? `${this.canvas.width}x${this.canvas.height}` : 'NO CTX';
+      const playerEl = document.getElementById('debug-player');
+      if (playerEl) playerEl.textContent = `SPD:${Math.round(this.speed || 0)} POS:${Math.round(this.position || 0)}`;
+      const loopEl = document.getElementById('debug-loop');
+      if (loopEl) loopEl.textContent = this.mainLoopRunning ? 'ACTIVE' : 'HALTED';
+      const errEl = document.getElementById('debug-error');
+      if (errEl) {
+        if (extraErr) {
+          errEl.textContent = String(extraErr).slice(0, 32);
+          errEl.parentElement?.classList.add('has-error');
+        } else if (!errEl.textContent || errEl.textContent === 'NONE') {
+          errEl.textContent = 'NONE';
+        }
+      }
     }
 
     initDomReferences() {
@@ -871,10 +927,35 @@
         }
       });
 
-      // Dismiss Orientation Banner
-      document.getElementById('btn-dismiss-orientation')?.addEventListener('click', () => {
-        document.getElementById('orientation-banner')?.classList.add('hidden');
+      // Fullscreen & Orientation Lock Button
+      document.getElementById('btn-force-landscape')?.addEventListener('click', async () => {
+        this.audio.playClick();
+        try {
+          if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
+            await document.documentElement.requestFullscreen();
+          }
+          if (screen.orientation && screen.orientation.lock) {
+            await screen.orientation.lock('landscape');
+          }
+        } catch (e) {
+          console.warn('Orientation lock / fullscreen not allowed:', e);
+        }
+        const overlay = document.getElementById('rotate-screen-overlay');
+        overlay?.classList.add('user-dismissed');
+        overlay?.classList.add('hidden');
+        setTimeout(() => this.resizeCanvas(), 200);
       });
+
+      // Match media orientation change listener
+      if (window.matchMedia) {
+        try {
+          const mql = window.matchMedia("(orientation: portrait)");
+          mql.addEventListener('change', () => {
+            this.checkOrientation();
+            this.resizeCanvas();
+          });
+        } catch (e) {}
+      }
 
       this.checkOrientation();
     }
@@ -883,7 +964,8 @@
       const btn = document.getElementById(id);
       if (!btn) return;
       const start = (e) => {
-        e.preventDefault();
+        if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
         this.audio.init();
         btn.classList.add('active');
         if (this.save.data.settings.vibration && navigator.vibrate) {
@@ -892,17 +974,19 @@
         callback(true);
       };
       const end = (e) => {
-        e.preventDefault();
+        if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
         btn.classList.remove('active');
         callback(false);
       };
 
+      btn.addEventListener('pointerdown', start, { passive: false });
+      btn.addEventListener('pointerup', end, { passive: false });
+      btn.addEventListener('pointercancel', end, { passive: false });
+      btn.addEventListener('pointerleave', end, { passive: false });
       btn.addEventListener('touchstart', start, { passive: false });
       btn.addEventListener('touchend', end, { passive: false });
       btn.addEventListener('touchcancel', end, { passive: false });
-      btn.addEventListener('pointerdown', start);
-      btn.addEventListener('pointerup', end);
-      btn.addEventListener('pointercancel', end);
     }
 
     handleKeyEvent(code, isDown) {
@@ -932,13 +1016,14 @@
     }
 
     checkOrientation() {
-      const banner = document.getElementById('orientation-banner');
-      if (!banner) return;
-      const isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
-      if (isMobile && window.innerHeight > window.innerWidth) {
-        banner.classList.remove('hidden');
+      const overlay = document.getElementById('rotate-screen-overlay');
+      if (!overlay) return;
+      const isPortrait = window.innerHeight > window.innerWidth;
+      const isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (window.innerWidth < 900);
+      if (isMobile && isPortrait && !overlay.classList.contains('user-dismissed')) {
+        overlay.classList.remove('hidden');
       } else {
-        banner.classList.add('hidden');
+        overlay.classList.add('hidden');
       }
     }
 
@@ -1666,42 +1751,52 @@
         }
       });
 
+      // Start in COUNTDOWN state on the grid
+      this.gameState = 'COUNTDOWN';
+      this.speed = 0;
+      this.isPlayingRace = true;
+      this.lastFrameTime = performance.now();
+      this.updateDebugBar();
+
       // Countdown visual animation
       const countdownEl = document.getElementById('hud-countdown-overlay');
       const countdownText = document.getElementById('countdown-text');
       if (countdownEl && countdownText) {
         countdownEl.classList.remove('hidden');
         countdownText.textContent = '3';
-        this.audio.playTone(440, 'triangle', 0.15, 0.2);
+        this.audio.playTone(440, 'triangle', 0.15, 0.25);
 
         setTimeout(() => {
           if (!this.isPlayingRace) return;
           countdownText.textContent = '2';
-          this.audio.playTone(440, 'triangle', 0.15, 0.2);
-        }, 500);
+          this.audio.playTone(440, 'triangle', 0.15, 0.25);
+        }, 550);
 
         setTimeout(() => {
           if (!this.isPlayingRace) return;
           countdownText.textContent = '1';
-          this.audio.playTone(440, 'triangle', 0.15, 0.2);
-        }, 1000);
+          this.audio.playTone(440, 'triangle', 0.15, 0.25);
+        }, 1100);
 
         setTimeout(() => {
           if (!this.isPlayingRace) return;
           countdownText.textContent = 'GO!';
-          this.audio.playTone(880, 'sine', 0.25, 0.3);
+          this.audio.playTone(880, 'sine', 0.3, 0.35);
+          this.gameState = 'RACING';
+          this.speed = 45; // Smooth initial roll
+          this.updateDebugBar();
           setTimeout(() => {
             countdownEl.classList.add('hidden');
-          }, 450);
-        }, 1500);
+          }, 500);
+        }, 1650);
+      } else {
+        this.gameState = 'RACING';
+        this.speed = 45;
+        this.updateDebugBar();
       }
 
       // Audio
       if (this.save.data.settings.music) this.audio.startMusic();
-
-      // State is active race
-      this.isPlayingRace = true;
-      this.lastFrameTime = performance.now();
     }
 
     endRaceSession() {
@@ -1763,6 +1858,13 @@
        ========================================================================== */
 
     update(dt) {
+      if (this.gameState === 'COUNTDOWN') {
+        this.speed = 0;
+        this.updateHUD();
+        this.updateDebugBar();
+        return;
+      }
+
       const driver = DRIVERS.find(d => d.id === this.save.data.selectedDriverId) || DRIVERS[0];
       const sens = this.save.data.settings.sensitivity || 1.0;
 
@@ -1802,10 +1904,13 @@
       const turnAgility = 2.4 * sens * (driver.bonus.handling || 1.0);
 
       if (this.keys.left) {
+        this.playerSteer = Math.max(-1, (this.playerSteer || 0) - 7.0 * dt);
         this.playerX -= turnAgility * dt * (0.4 + speedRatio * 0.6);
-      }
-      if (this.keys.right) {
+      } else if (this.keys.right) {
+        this.playerSteer = Math.min(1, (this.playerSteer || 0) + 7.0 * dt);
         this.playerX += turnAgility * dt * (0.4 + speedRatio * 0.6);
+      } else {
+        this.playerSteer = (this.playerSteer || 0) * Math.max(0, 1 - 8.0 * dt);
       }
 
       if (playerSegment) {
@@ -2439,47 +2544,126 @@
       const carW = Math.round(width * 0.26);
       const carH = Math.round(carW * 0.52);
       const carX = width / 2;
-      const carY = height - 20;
+      
+      // Dynamic vertical suspension bounce based on track movement
+      const suspensionBounce = (this.speed > 5) ? Math.sin(this.position / 35) * Math.min(3.5, this.speed * 0.02) : 0;
+      const carY = height - 20 + suspensionBounce;
 
       ctx.save();
 
+      // Dynamic steering angle and chassis tilt
       let steerAngle = 0;
-      if (this.keys.left) steerAngle = -0.06;
-      if (this.keys.right) steerAngle = 0.06;
+      if (this.keys.left) steerAngle = -0.07;
+      if (this.keys.right) steerAngle = 0.07;
+
+      // 1. Ground contact shadow
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.beginPath();
+      ctx.ellipse(carX, height - 14, carW * 0.56, carH * 0.16, 0, 0, Math.PI * 2);
+      ctx.fill();
 
       ctx.translate(carX, carY);
       ctx.rotate(steerAngle);
 
-      if (this.isNitroActive && this.speed > 50) {
+      // 2. Dual Animated Nitro Flames
+      if (this.isNitroActive && this.nitro > 0) {
+        const flameLen = Math.random() * 26 + 18;
         ctx.fillStyle = '#00f0ff';
         ctx.shadowColor = '#00f0ff';
-        ctx.shadowBlur = 18;
-        ctx.fillRect(-carW * 0.35, carH * 0.05, carW * 0.15, Math.random() * 25 + 15);
-        ctx.fillRect(carW * 0.2, carH * 0.05, carW * 0.15, Math.random() * 25 + 15);
+        ctx.shadowBlur = 20;
+
+        // Left exhaust flame
+        ctx.beginPath();
+        ctx.moveTo(-carW * 0.32, carH * 0.02);
+        ctx.lineTo(-carW * 0.22, carH * 0.02);
+        ctx.lineTo(-carW * 0.27, carH * 0.02 + flameLen);
+        ctx.closePath();
+        ctx.fill();
+
+        // Right exhaust flame
+        ctx.beginPath();
+        ctx.moveTo(carW * 0.22, carH * 0.02);
+        ctx.lineTo(carW * 0.32, carH * 0.02);
+        ctx.lineTo(carW * 0.27, carH * 0.02 + flameLen);
+        ctx.closePath();
+        ctx.fill();
+
+        // Inner white hot core
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.moveTo(-carW * 0.29, carH * 0.02);
+        ctx.lineTo(-carW * 0.25, carH * 0.02);
+        ctx.lineTo(-carW * 0.27, carH * 0.02 + flameLen * 0.5);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(carW * 0.25, carH * 0.02);
+        ctx.lineTo(carW * 0.29, carH * 0.02);
+        ctx.lineTo(carW * 0.27, carH * 0.02 + flameLen * 0.5);
+        ctx.closePath();
+        ctx.fill();
+
         ctx.shadowBlur = 0;
       }
 
+      // 3. Rotating Tires with Rim Spokes
+      const wheelRotation = (this.position / 18) % (Math.PI * 2);
       ctx.fillStyle = '#111827';
-      ctx.fillRect(-carW * 0.52, -carH * 0.25, carW * 0.12, carH * 0.35);
-      ctx.fillRect(carW * 0.4, -carH * 0.25, carW * 0.12, carH * 0.35);
+      // Left tire
+      ctx.fillRect(-carW * 0.52, -carH * 0.28, carW * 0.12, carH * 0.38);
+      // Right tire
+      ctx.fillRect(carW * 0.4, -carH * 0.28, carW * 0.12, carH * 0.38);
 
+      // Rotating rim treads
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 1.5;
+      [-carW * 0.46, carW * 0.46].forEach(wx => {
+        ctx.beginPath();
+        ctx.arc(wx, -carH * 0.09, 7, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(wx + Math.cos(wheelRotation) * 6, -carH * 0.09 + Math.sin(wheelRotation) * 6);
+        ctx.lineTo(wx - Math.cos(wheelRotation) * 6, -carH * 0.09 - Math.sin(wheelRotation) * 6);
+        ctx.stroke();
+      });
+
+      // 4. Main Aerodynamic Chassis Body
       ctx.fillStyle = carColor;
       drawRoundRect(ctx, -carW / 2, -carH, carW, carH * 0.85, [14, 14, 6, 6]);
       ctx.fill();
 
+      // Cockpit / Windshield Glass
       ctx.fillStyle = '#0f172a';
       drawRoundRect(ctx, -carW * 0.35, -carH * 0.9, carW * 0.7, carH * 0.45, [10, 10, 4, 4]);
       ctx.fill();
 
+      // Racing Stripes / Livery Accent
       ctx.fillStyle = car.accent || '#ffffff';
       ctx.fillRect(-carW * 0.08, -carH, carW * 0.16, carH * 0.85);
 
-      ctx.fillStyle = this.keys.slower ? '#ff0033' : '#ef4444';
-      ctx.shadowColor = '#ff0055';
-      ctx.shadowBlur = 12;
-      ctx.fillRect(-carW * 0.44, -carH * 0.35, carW * 0.22, carH * 0.18);
-      ctx.fillRect(carW * 0.22, -carH * 0.35, carW * 0.22, carH * 0.18);
+      // 5. Reactive Tail Lights
+      const isBraking = this.keys.slower;
+      ctx.fillStyle = isBraking ? '#ff0033' : '#ef4444';
+      ctx.shadowColor = isBraking ? '#ff0033' : '#ff0055';
+      ctx.shadowBlur = isBraking ? 20 : 12;
+      ctx.fillRect(-carW * 0.44, -carH * 0.35, carW * 0.22, carH * (isBraking ? 0.22 : 0.18));
+      ctx.fillRect(carW * 0.22, -carH * 0.35, carW * 0.22, carH * (isBraking ? 0.22 : 0.18));
       ctx.shadowBlur = 0;
+
+      // 6. High Speed Wind Blur Lines
+      if (this.speed > 175) {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 1.5;
+        for (let i = 0; i < 3; i++) {
+          const sx = (Math.random() - 0.5) * carW * 1.2;
+          const sy = -carH * (0.3 + Math.random() * 0.6);
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(sx, sy - (Math.random() * 25 + 15));
+          ctx.stroke();
+        }
+      }
 
       ctx.restore();
     }
