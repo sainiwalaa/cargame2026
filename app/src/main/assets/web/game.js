@@ -8,6 +8,35 @@
 (function () {
   'use strict';
 
+  // Cross-browser Canvas safe roundRect helper
+  function drawRoundRect(ctx, x, y, width, height, radii) {
+    if (typeof ctx.roundRect === 'function') {
+      try {
+        ctx.beginPath();
+        ctx.roundRect(x, y, width, height, radii);
+        return;
+      } catch (e) {}
+    }
+    let r = 8;
+    if (Array.isArray(radii)) {
+      r = radii[0] || 8;
+    } else if (typeof radii === 'number') {
+      r = radii;
+    }
+    r = Math.min(r, Math.abs(width) / 2, Math.abs(height) / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    ctx.lineTo(x + r, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
   /* ==========================================================================
      1. CONSTANTS, VEHICLES & DRIVERS CONFIGURATION
      ========================================================================== */
@@ -626,6 +655,7 @@
       this.bindTouchButton('btn-touch-left', (pressed) => { this.keys.left = pressed; });
       this.bindTouchButton('btn-touch-right', (pressed) => { this.keys.right = pressed; });
       this.bindTouchButton('btn-touch-brake', (pressed) => { this.keys.slower = pressed; });
+      this.bindTouchButton('btn-touch-gas', (pressed) => { this.keys.faster = pressed; });
       this.bindTouchButton('btn-touch-nitro', (pressed) => { this.keys.nitro = pressed; });
 
       // HUD & Pause Buttons
@@ -724,7 +754,7 @@
         this.audio.playClick();
         this.audio.init();
         this.modals.briefing?.classList.add('hidden');
-        this.startRace(this.currentLevelId);
+        this.startRace(this.currentLevelId || 1);
       });
 
       // Level Complete Buttons
@@ -1467,8 +1497,18 @@
 
     buildTrack(levelConfig) {
       this.segments = [];
-      const env = levelConfig.environment;
-      const numSegments = Math.floor(levelConfig.distance / this.segmentLength);
+      const env = levelConfig.environment || (typeof ENVIRONMENTS !== 'undefined' ? ENVIRONMENTS.CITY : null) || {
+        roadColor: '#2b2d42',
+        groundColor: '#1a1d20',
+        curbColor1: '#ef233c',
+        curbColor2: '#edf2f4',
+        sceneryType: 'city',
+        id: 'city'
+      };
+
+      // Realistic segment count scaled to level distance (550 - 1500 segments)
+      const distanceMeters = Number(levelConfig.distance) || 2200;
+      const numSegments = Math.max(350, Math.floor(distanceMeters / 4));
       this.trackLength = numSegments * this.segmentLength;
 
       let curY = 0;
@@ -1479,10 +1519,10 @@
         segment.p1.world.z = n * this.segmentLength;
         segment.p2.world.z = (n + 1) * this.segmentLength;
 
-        if (n > 20 && n < numSegments - 20) {
+        if (n > 25 && n < numSegments - 30) {
           if (n % 40 === 0) {
             curCurve = (Math.sin(n / 25) * 3.5);
-            curY = (Math.sin(n / 35) * 900);
+            curY = (Math.sin(n / 35) * 800);
           }
         } else {
           curCurve = 0;
@@ -1499,7 +1539,7 @@
         segment.color.rumble = isRumble ? env.curbColor1 : env.curbColor2;
         segment.color.lane = (Math.floor(n / 2) % 2 === 0) ? '#ffffff' : env.roadColor;
 
-        if (n > 30 && n % 35 === 0 && n < numSegments - 20) {
+        if (n > 50 && n % 80 === 0 && n < numSegments - 40) {
           segment.isCheckpoint = true;
         }
 
@@ -1507,9 +1547,9 @@
           segment.isFinish = true;
         }
 
-        if (n % 6 === 0) {
-          const side = (n % 12 === 0) ? -1 : 1;
-          const offset = side * (1.6 + Math.random() * 0.8);
+        if (n % 5 === 0) {
+          const side = (n % 10 === 0) ? -1 : 1;
+          const offset = side * (1.6 + Math.random() * 0.9);
           segment.sprites.push({
             type: env.sceneryType,
             offset: offset,
@@ -1517,11 +1557,11 @@
           });
         }
 
-        if (env.id === 'tunnel' && n > 25 && n < numSegments - 15) {
+        if (env.id === 'tunnel' && n > 30 && n < numSegments - 25) {
           segment.isTunnel = true;
         }
 
-        if (n > 10 && n % 14 === 0 && Math.random() > 0.3) {
+        if (n > 15 && n % 12 === 0 && Math.random() > 0.25) {
           segment.coins.push({
             lane: (Math.floor(Math.random() * 3) - 1) * 0.6,
             collected: false
@@ -1532,9 +1572,10 @@
       }
 
       this.trafficCars = [];
-      const trafficCount = Math.floor(numSegments * 0.08 * levelConfig.trafficDensity);
+      const density = Number(levelConfig.trafficDensity) || 1.0;
+      const trafficCount = Math.max(12, Math.floor(numSegments * 0.04 * density));
       for (let i = 0; i < trafficCount; i++) {
-        const segIdx = 30 + Math.floor(Math.random() * (numSegments - 50));
+        const segIdx = 25 + Math.floor(Math.random() * (numSegments - 55));
         const laneChoice = [-0.65, 0, 0.65][Math.floor(Math.random() * 3)];
         const carTypeIdx = Math.floor(Math.random() * CARS.length);
         const trafficSpeed = 90 + Math.random() * 80;
@@ -1562,11 +1603,12 @@
        ========================================================================== */
 
     startRace(levelId) {
-      this.currentLevelId = levelId;
+      const targetId = Number(levelId) || 1;
+      this.currentLevelId = targetId;
       const allLevels = this.getLevels();
-      this.currentLevel = allLevels[levelId - 1];
+      this.currentLevel = allLevels[targetId - 1] || allLevels[0];
       if (!this.currentLevel) {
-        console.error('Level data missing for ID:', levelId);
+        console.error('Level data missing for ID:', targetId);
         return;
       }
 
@@ -1587,7 +1629,7 @@
       this.maxHealth = maxHealth;
       this.health = maxHealth;
       this.nitro = 100;
-      this.speed = 0;
+      this.speed = 40; // Immediate rolling start for responsive game feel
       this.position = 0;
       this.playerX = 0;
 
@@ -1602,6 +1644,9 @@
       this.isGameOver = false;
       this.isVictory = false;
       this.isPaused = false;
+
+      // Ensure canvas matches screen dimensions
+      this.resizeCanvas();
 
       // Build 3D Track
       this.buildTrack(this.currentLevel);
@@ -1621,6 +1666,36 @@
         }
       });
 
+      // Countdown visual animation
+      const countdownEl = document.getElementById('hud-countdown-overlay');
+      const countdownText = document.getElementById('countdown-text');
+      if (countdownEl && countdownText) {
+        countdownEl.classList.remove('hidden');
+        countdownText.textContent = '3';
+        this.audio.playTone(440, 'triangle', 0.15, 0.2);
+
+        setTimeout(() => {
+          if (!this.isPlayingRace) return;
+          countdownText.textContent = '2';
+          this.audio.playTone(440, 'triangle', 0.15, 0.2);
+        }, 500);
+
+        setTimeout(() => {
+          if (!this.isPlayingRace) return;
+          countdownText.textContent = '1';
+          this.audio.playTone(440, 'triangle', 0.15, 0.2);
+        }, 1000);
+
+        setTimeout(() => {
+          if (!this.isPlayingRace) return;
+          countdownText.textContent = 'GO!';
+          this.audio.playTone(880, 'sine', 0.25, 0.3);
+          setTimeout(() => {
+            countdownEl.classList.add('hidden');
+          }, 450);
+        }, 1500);
+      }
+
       // Audio
       if (this.save.data.settings.music) this.audio.startMusic();
 
@@ -1634,6 +1709,7 @@
       this.audio.stopEngine();
       this.audio.stopMusic();
       this.hudOverlay?.classList.add('hidden');
+      document.getElementById('hud-countdown-overlay')?.classList.add('hidden');
     }
 
     togglePause() {
@@ -1662,14 +1738,18 @@
       this.lastFrameTime = performance.now();
 
       const loop = (now) => {
-        const dt = Math.min(0.1, (now - (this.lastFrameTime || now)) / 1000);
-        this.lastFrameTime = now;
+        try {
+          const dt = Math.min(0.1, (now - (this.lastFrameTime || now)) / 1000);
+          this.lastFrameTime = now;
 
-        if (this.isPlayingRace && !this.isPaused && !this.isGameOver && !this.isVictory) {
-          this.update(dt);
-          this.render();
-        } else if (!this.isPlayingRace) {
-          this.renderMenuBackground(dt);
+          if (this.isPlayingRace && !this.isPaused && !this.isGameOver && !this.isVictory) {
+            this.update(dt);
+            this.render();
+          } else if (!this.isPlayingRace) {
+            this.renderMenuBackground(dt);
+          }
+        } catch (err) {
+          console.error('Car Rush mainLoop frame error:', err);
         }
 
         requestAnimationFrame(loop);
@@ -1708,7 +1788,13 @@
       } else if (this.keys.slower) {
         this.speed = Math.max(0, this.speed + decel * dt * 2.2);
       } else {
-        this.speed = Math.max(0, this.speed - (targetMaxSpeed / 7.0) * dt);
+        // Natural arcade cruising at 60% speed when no pedals held
+        const cruiseSpeed = targetMaxSpeed * 0.6;
+        if (this.speed < cruiseSpeed) {
+          this.speed = Math.min(cruiseSpeed, this.speed + accel * dt * 0.85);
+        } else {
+          this.speed = Math.max(cruiseSpeed, this.speed - (targetMaxSpeed / 8.0) * dt);
+        }
       }
 
       const playerSegment = this.findSegment(this.position + 1000);
@@ -2378,13 +2464,11 @@
       ctx.fillRect(carW * 0.4, -carH * 0.25, carW * 0.12, carH * 0.35);
 
       ctx.fillStyle = carColor;
-      ctx.beginPath();
-      ctx.roundRect(-carW / 2, -carH, carW, carH * 0.85, [14, 14, 6, 6]);
+      drawRoundRect(ctx, -carW / 2, -carH, carW, carH * 0.85, [14, 14, 6, 6]);
       ctx.fill();
 
       ctx.fillStyle = '#0f172a';
-      ctx.beginPath();
-      ctx.roundRect(-carW * 0.35, -carH * 0.9, carW * 0.7, carH * 0.45, [10, 10, 4, 4]);
+      drawRoundRect(ctx, -carW * 0.35, -carH * 0.9, carW * 0.7, carH * 0.45, [10, 10, 4, 4]);
       ctx.fill();
 
       ctx.fillStyle = car.accent || '#ffffff';

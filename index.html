@@ -137,6 +137,10 @@
             <span class="touch-icon">🛑</span>
             <span class="touch-label">BRAKE</span>
           </button>
+          <button id="btn-touch-gas" class="touch-btn touch-gas-btn" aria-label="Gas / Accelerate">
+            <span class="touch-icon">▲</span>
+            <span class="touch-label">GAS</span>
+          </button>
           <button id="btn-touch-nitro" class="touch-btn touch-nitro-btn" aria-label="Engage Nitro Boost">
             <span class="touch-icon">⚡</span>
             <span class="touch-label">NITRO</span>
@@ -693,6 +697,26 @@
               RETRY NOW
             </button>
           </div>
+        </div>
+      </div>
+
+      <!-- 13. COUNTDOWN OVERLAY -->
+      <div id="hud-countdown-overlay" class="hud-countdown-overlay hidden">
+        <div id="countdown-text" class="countdown-text">3</div>
+      </div>
+
+      <!-- 14. CAR RUSH ERROR DEBUG PANEL -->
+      <div id="car-rush-error-panel" class="car-rush-error-panel hidden">
+        <div class="error-panel-card">
+          <h2 class="error-panel-title">⚠️ CAR RUSH ERROR</h2>
+          <div class="error-panel-body">
+            <div class="error-line"><strong>Error:</strong> <span id="error-panel-msg">Unknown</span></div>
+            <div class="error-line"><strong>Function:</strong> <span id="error-panel-fn">-</span></div>
+            <div class="error-line"><strong>File:</strong> <span id="error-panel-file">game.js</span></div>
+            <div class="error-line"><strong>Line:</strong> <span id="error-panel-line">-</span></div>
+            <pre id="error-panel-stack" class="error-stack"></pre>
+          </div>
+          <button id="btn-close-error" class="btn-secondary" aria-label="Dismiss Error">DISMISS</button>
         </div>
       </div>
 
