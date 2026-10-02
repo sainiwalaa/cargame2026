@@ -68,6 +68,12 @@
     ctx.closePath();
   }
 
+  function getNow() {
+    return (typeof performance !== 'undefined' && typeof performance.now === 'function')
+      ? performance.now()
+      : Date.now();
+  }
+
   /* ==========================================================================
      1. CONSTANTS, VEHICLES & DRIVERS CONFIGURATION
      ========================================================================== */
@@ -624,6 +630,43 @@
       // Main Loop
       this.mainLoopRunning = false;
       this.startMainLoop();
+    }
+
+    get state() {
+      return this.gameState;
+    }
+
+    set state(val) {
+      this.gameState = val;
+    }
+
+    get traffic() {
+      return this.trafficCars;
+    }
+
+    set traffic(val) {
+      this.trafficCars = val;
+    }
+
+    get player() {
+      return {
+        x: this.playerX,
+        speed: this.speed,
+        position: this.position,
+        health: this.health,
+        maxHealth: this.maxHealth,
+        nitro: this.nitro,
+        maxNitro: this.maxNitro,
+        steer: this.playerSteer
+      };
+    }
+
+    get score() {
+      return this.raceScore;
+    }
+
+    set score(val) {
+      this.raceScore = val;
     }
 
     updateDebugBar(extraErr = null) {
@@ -1755,7 +1798,7 @@
       this.gameState = 'COUNTDOWN';
       this.speed = 0;
       this.isPlayingRace = true;
-      this.lastFrameTime = performance.now();
+      this.lastFrameTime = getNow();
       this.updateDebugBar();
 
       // Countdown visual animation
@@ -1819,7 +1862,7 @@
         }
       } else {
         this.modals.pause?.classList.add('hidden');
-        this.lastFrameTime = performance.now();
+        this.lastFrameTime = getNow();
       }
     }
 
@@ -1830,12 +1873,13 @@
     startMainLoop() {
       if (this.mainLoopRunning) return;
       this.mainLoopRunning = true;
-      this.lastFrameTime = performance.now();
+      this.lastFrameTime = getNow();
 
       const loop = (now) => {
         try {
-          const dt = Math.min(0.1, (now - (this.lastFrameTime || now)) / 1000);
-          this.lastFrameTime = now;
+          const currentTimestamp = now || getNow();
+          const dt = Math.min(0.1, (currentTimestamp - (this.lastFrameTime || currentTimestamp)) / 1000);
+          this.lastFrameTime = currentTimestamp;
 
           if (this.isPlayingRace && !this.isPaused && !this.isGameOver && !this.isVictory) {
             this.update(dt);
@@ -2033,12 +2077,20 @@
     }
 
     addScorePopup(text, isNearMiss = false) {
-      if (!this.hudPopupsContainer) return;
-      const popup = document.createElement('div');
-      popup.className = `score-float-item ${isNearMiss ? 'near-miss' : ''}`;
-      popup.textContent = text;
-      this.hudPopupsContainer.appendChild(popup);
-      setTimeout(() => popup.remove(), 800);
+      if (!this.hudPopupsContainer || typeof this.hudPopupsContainer.appendChild !== 'function') return;
+      try {
+        const popup = document.createElement('div');
+        popup.className = `score-float-item ${isNearMiss ? 'near-miss' : ''}`;
+        popup.textContent = text;
+        this.hudPopupsContainer.appendChild(popup);
+        setTimeout(() => {
+          if (typeof popup.remove === 'function') {
+            popup.remove();
+          } else if (popup.parentNode) {
+            popup.parentNode.removeChild(popup);
+          }
+        }, 800);
+      } catch (e) {}
     }
 
     updateHUD() {
@@ -2559,7 +2611,15 @@
       // 1. Ground contact shadow
       ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
       ctx.beginPath();
-      ctx.ellipse(carX, height - 14, carW * 0.56, carH * 0.16, 0, 0, Math.PI * 2);
+      if (typeof ctx.ellipse === 'function') {
+        ctx.ellipse(carX, height - 14, carW * 0.56, carH * 0.16, 0, 0, Math.PI * 2);
+      } else {
+        ctx.save();
+        ctx.translate(carX, height - 14);
+        ctx.scale(carW * 0.56, carH * 0.16);
+        ctx.arc(0, 0, 1, 0, Math.PI * 2);
+        ctx.restore();
+      }
       ctx.fill();
 
       ctx.translate(carX, carY);
